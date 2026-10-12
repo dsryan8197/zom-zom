@@ -133,7 +133,7 @@ const painters = {
 export function tex(name, repeat = 1) {
   if (!cache[name]) {
     if (['brick', 'wood', 'crate', 'grass', 'tiles'].includes(name)) {
-      cache[name] = finish(loader.load(`./textures/${name}.png`));
+      cache[name] = finish(loader.load(window.__TEX?.[name] || `./textures/${name}.png`));
     } else {
       cache[name] = canvasTex(name.startsWith('z') ? 32 : 64, painters[name]);
     }

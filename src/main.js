@@ -15,6 +15,11 @@ import { HUD } from './hud.js';
 import { Input } from './input.js';
 import { initAudio, setListener, sfx } from './audio.js';
 
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } },
+};
+
 // Each round gets its own atmosphere, like the reference shots: dusty orange, cold blue mist, white-out fog, night.
 const ATMOS = [
   { name: 'dust', fog: 0xa98058, density: 0.0125, sky: 0xffcf9a, ground: 0x4a3424, hemi: 1.1, sun: 0xffb070, sunI: 2.6, exposure: 1.0, tint: [1.06, 0.98, 0.88] },
@@ -117,7 +122,7 @@ class Game {
   }
 
   showBest() {
-    const best = +(localStorage.getItem('zomzom-best') || 0), bestR = +(localStorage.getItem('zomzom-best-round') || 0);
+    const best = +(store.get('zomzom-best') || 0), bestR = +(store.get('zomzom-best-round') || 0);
     document.getElementById('best').textContent = best ? `Best: ${best.toLocaleString()} pts — round ${bestR}` : '';
   }
 
@@ -421,8 +426,8 @@ class Game {
     P.dead = true; P.health = 0;
     this.state = 'dead';
     this.slowmo = 0.25;
-    const best = +(localStorage.getItem('zomzom-best') || 0);
-    if (this.score > best) { localStorage.setItem('zomzom-best', this.score); localStorage.setItem('zomzom-best-round', this.round); }
+    const best = +(store.get('zomzom-best') || 0);
+    if (this.score > best) { store.set('zomzom-best', this.score); store.set('zomzom-best-round', this.round); }
     setTimeout(() => {
       document.exitPointerLock?.();
       document.getElementById('go-stats').innerHTML =
