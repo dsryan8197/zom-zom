@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZOM-ZOM</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <div id="game"></div>
+  <div id="hud" class="hidden">
+    <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+    <div id="hitmarker"></div>
+    <div id="damage-vignette"></div>
+    <div id="top-left">
+      <div id="round">ROUND <b>1</b></div>
+      <div id="remaining"></div>
+      <div id="intermission"></div>
+    </div>
+    <div id="top-center">
+      <div id="compass"><div id="compass-strip"></div><div id="drop-marker">▼<span></span></div></div>
+    </div>
+    <div id="top-right">
+      <canvas id="minimap" width="180" height="180"></canvas>
+    </div>
+    <div id="score-box">
+      <div id="score">0</div>
+      <div id="combo"></div>
+    </div>
+    <div id="feed"></div>
+    <div id="bottom-left">
+      <div id="health"><div id="health-fill"></div><span>100</span></div>
+      <div id="walls"></div>
+      <div id="special"></div>
+      <div id="grenades"></div>
+    </div>
+    <div id="bottom-right">
+      <div id="slots"></div>
+      <div id="ammo"><b>0</b> / <span>0</span></div>
+      <div id="weapon-name"></div>
+    </div>
+    <div id="prompt"></div>
+    <div id="banner"></div>
+    <div id="jet-fuel"><div></div></div>
+  </div>
+  <div id="menu">
+    <div class="panel">
+      <h1>ZOM<span>-</span>ZOM</h1>
+      <p class="tag">Waves never stop. Neither do you.</p>
+      <button id="play">CLICK TO PLAY</button>
+      <div id="best"></div>
+      <div class="controls">
+        <div><kbd>WASD</kbd> run (you're always sprinting)</div>
+        <div><kbd>Mouse</kbd> aim &nbsp; <kbd>LMB</kbd> shoot &nbsp; <kbd>RMB</kbd> aim down sights</div>
+        <div><kbd>Q</kbd> / <kbd>Wheel</kbd> / <kbd>1-4</kbd> switch gun &nbsp; <kbd>R</kbd> reload</div>
+        <div><kbd>V</kbd> baseball bat &nbsp; <kbd>G</kbd> grenade &nbsp; <kbd>Space</kbd> jump / parachute</div>
+        <div><kbd>E</kbd> specialty item &nbsp; <kbd>F</kbd> instant wall &nbsp; <kbd>X</kbd> swap gun / zipline</div>
+        <div class="dim">Run through ammo to grab it. A supply drop lands somewhere new every round — go get it.</div>
+      </div>
+    </div>
+  </div>
+  <div id="gameover" class="hidden">
+    <div class="panel">
+      <h1>YOU DIED</h1>
+      <div id="go-stats"></div>
+      <button id="restart">PLAY AGAIN</button>
+    </div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

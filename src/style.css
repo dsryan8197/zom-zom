@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@500;800&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff;
+  font-family: 'Rubik', system-ui, sans-serif; user-select: none; }
+#game { position: fixed; inset: 0; }
+#game canvas { display: block; }
+.hidden { display: none !important; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+
+#crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+#crosshair i { position: absolute; background: rgba(255,255,255,.9); box-shadow: 0 0 2px #000; }
+#crosshair i:nth-child(1), #crosshair i:nth-child(2) { width: 2px; height: 9px; left: -1px; }
+#crosshair i:nth-child(3), #crosshair i:nth-child(4) { height: 2px; width: 9px; top: -1px; }
+#crosshair i:nth-child(1) { top: calc(-9px - var(--spread, 8px)); }
+#crosshair i:nth-child(2) { top: var(--spread, 8px); }
+#crosshair i:nth-child(3) { left: calc(-9px - var(--spread, 8px)); }
+#crosshair i:nth-child(4) { left: var(--spread, 8px); }
+#crosshair.ads { opacity: 0; }
+
+#hitmarker { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px; opacity: 0;
+  background:
+    linear-gradient(45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%);
+  -webkit-mask: radial-gradient(circle, transparent 5px, #000 6px); mask: radial-gradient(circle, transparent 5px, #000 6px); }
+#hitmarker.head { background:
+    linear-gradient(45deg, transparent 44%, #ff3b3b 44%, #ff3b3b 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, #ff3b3b 44%, #ff3b3b 56%, transparent 56%); }
+
+#damage-vignette { position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(170,0,0,.85) 100%); }
+
+#top-left { position: absolute; left: 24px; top: 18px; }
+#round { font-family: 'Bebas Neue', sans-serif; font-size: 44px; color: #d8d8d8; letter-spacing: 2px; }
+#round b { color: #ff3030; font-size: 64px; vertical-align: -6px; margin-left: 6px; }
+#remaining { font-size: 15px; opacity: .85; }
+#intermission { font-size: 15px; color: #ffcf4a; margin-top: 4px; }
+
+#top-center { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); }
+#compass { position: relative; width: 420px; height: 30px; overflow: hidden;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,.35) 20%, rgba(0,0,0,.35) 80%, transparent);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
+#compass-strip { position: absolute; top: 0; height: 30px; white-space: nowrap; font-family: 'Bebas Neue'; font-size: 20px; line-height: 30px; }
+#compass-strip span { display: inline-block; width: 30px; text-align: center; opacity: .8; }
+#compass-strip span.c { color: #ffcf4a; opacity: 1; }
+#drop-marker { position: absolute; top: 0; color: #ff4040; font-size: 14px; transform: translateX(-50%); text-align: center; line-height: 12px; display: none; }
+#drop-marker span { display: block; font-size: 11px; color: #fff; }
+
+#top-right { position: absolute; right: 20px; top: 18px; }
+#minimap { width: 180px; height: 180px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: rgba(0,0,0,.45); }
+
+#score-box { position: absolute; right: 24px; top: 210px; text-align: right; }
+#score { font-family: 'Bebas Neue'; font-size: 42px; color: #ffe08a; }
+#combo { font-family: 'Bebas Neue'; font-size: 30px; color: #ff6a3a; transition: transform .08s; }
+
+#feed { position: absolute; right: 24px; top: 300px; text-align: right; font-weight: 800; font-size: 15px; }
+#feed div { animation: feed 1.6s forwards; }
+#feed div.head { color: #ff5050; }
+#feed div.combo { color: #ffb030; }
+@keyframes feed { 0% { opacity: 0; transform: translateX(20px); } 10% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+#bottom-left { position: absolute; left: 24px; bottom: 22px; }
+#health { position: relative; width: 260px; height: 18px; background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.4); }
+#health-fill { height: 100%; width: 100%; background: linear-gradient(#e44, #a11); transition: width .15s; }
+#health span { position: absolute; left: 8px; top: -1px; font-size: 14px; font-weight: 800; }
+#walls, #special, #grenades { margin-top: 8px; font-size: 15px; font-weight: 800; }
+#walls .pip { display: inline-block; width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; border: 2px solid #9ad; background: transparent; }
+#walls .pip.on { background: #9ad; }
+#walls .pip .fill { display: block; height: 100%; background: rgba(150,170,220,.5); }
+#special b { color: #7cf3c9; }
+
+#bottom-right { position: absolute; right: 24px; bottom: 22px; text-align: right; }
+#slots { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
+#slots div { min-width: 92px; padding: 4px 8px; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.18); font-size: 12px; text-align: left; }
+#slots div.active { border-color: #ffcf4a; background: rgba(60,45,0,.6); }
+#slots div small { display: block; opacity: .6; font-size: 10px; }
+#slots div.t2 { color: #7ecbff; } #slots div.t3 { color: #c58bff; } #slots div.t4 { color: #ffa53a; }
+#ammo { font-family: 'Bebas Neue'; font-size: 30px; }
+#ammo b { font-size: 54px; }
+#weapon-name { font-size: 14px; letter-spacing: 2px; opacity: .85; }
+
+#prompt { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); font-weight: 800; font-size: 18px;
+  background: rgba(0,0,0,.5); padding: 6px 14px; border-radius: 4px; display: none; }
+#prompt kbd, .controls kbd { display: inline-block; background: #eee; color: #111; border-radius: 3px; padding: 0 6px; font-size: .85em; font-weight: 800; box-shadow: 0 2px 0 #888; }
+#banner { position: absolute; left: 0; right: 0; top: 24%; text-align: center; font-family: 'Bebas Neue'; font-size: 84px; color: #ff3030; letter-spacing: 4px; opacity: 0; transition: opacity .4s; }
+#banner small { display: block; font-size: 28px; color: #ddd; letter-spacing: 3px; }
+#jet-fuel { position: absolute; left: 50%; top: 58%; width: 120px; height: 6px; margin-left: -60px; background: rgba(0,0,0,.5); display: none; }
+#jet-fuel div { height: 100%; background: #7cf3c9; }
+
+#menu, #gameover { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(40,20,10,.55), rgba(0,0,0,.92)); z-index: 10; }
+.panel { text-align: center; padding: 30px; max-width: 640px; }
+.panel h1 { font-family: 'Bebas Neue'; font-size: 120px; letter-spacing: 6px; color: #e8e2d4; text-shadow: 0 0 30px rgba(255,90,40,.6); line-height: 1; }
+.panel h1 span { color: #ff3030; }
+.tag { opacity: .7; margin-bottom: 24px; letter-spacing: 2px; }
+.panel button { pointer-events: auto; cursor: pointer; font-family: 'Bebas Neue'; font-size: 34px; letter-spacing: 3px; padding: 10px 40px;
+  background: #b51d1d; color: #fff; border: 0; box-shadow: 0 4px 0 #6b0e0e; }
+.panel button:hover { background: #d22828; }
+#best { margin-top: 12px; opacity: .7; }
+.controls { margin-top: 26px; font-size: 14px; line-height: 2; opacity: .9; }
+.controls .dim { opacity: .6; margin-top: 8px; line-height: 1.4; }
+#go-stats { font-size: 20px; line-height: 1.8; margin: 16px 0 26px; }
+#go-stats b { color: #ffe08a; }
