@@ -11,6 +11,7 @@
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><i></i><i></i><i></i></div>
     <div id="hitmarker"></div>
+    <div id="scope"><i></i></div>
     <div id="damage-vignette"></div>
     <div id="top-left">
       <div id="round">ROUND <b>1</b></div>
@@ -48,15 +49,32 @@
       <h1>ZOM<span>-</span>ZOM</h1>
       <p class="tag">Waves never stop. Neither do you.</p>
       <button id="play">CLICK TO PLAY</button>
+      <div><button id="settings-btn" class="secondary">SETTINGS</button></div>
       <div id="best"></div>
       <div class="controls">
         <div><kbd>WASD</kbd> run (you're always sprinting)</div>
         <div><kbd>Mouse</kbd> aim &nbsp; <kbd>LMB</kbd> shoot &nbsp; <kbd>RMB</kbd> aim down sights</div>
         <div><kbd>Q</kbd> / <kbd>Wheel</kbd> / <kbd>1-4</kbd> switch gun &nbsp; <kbd>R</kbd> reload</div>
         <div><kbd>V</kbd> baseball bat &nbsp; <kbd>G</kbd> grenade &nbsp; <kbd>Space</kbd> jump / parachute</div>
-        <div><kbd>E</kbd> specialty item &nbsp; <kbd>F</kbd> instant wall &nbsp; <kbd>X</kbd> swap gun / zipline</div>
+        <div><kbd>E</kbd> specialty item &nbsp; <kbd>F</kbd> instant wall &nbsp; <kbd>X</kbd> swap gun / zipline / upgrade at a workbench</div>
         <div class="dim">Run through ammo to grab it. A supply drop lands somewhere new every round — go get it.</div>
       </div>
+    </div>
+  </div>
+  <div id="settings" class="hidden">
+    <div class="panel settings-panel">
+      <h2>SETTINGS</h2>
+      <label class="setting">
+        <span>Volume</span>
+        <input type="range" id="set-volume" min="0" max="100" step="1" />
+        <b id="set-volume-val"></b>
+      </label>
+      <label class="setting">
+        <span>Mouse sensitivity</span>
+        <input type="range" id="set-sens" min="0.1" max="3" step="0.05" />
+        <b id="set-sens-val"></b>
+      </label>
+      <button id="settings-back">BACK</button>
     </div>
   </div>
   <div id="gameover" class="hidden">

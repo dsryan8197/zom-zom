@@ -15,6 +15,8 @@ const G = {
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0xfff0c0, toneMapped: false });
 const eyeMatRed = new THREE.MeshBasicMaterial({ color: 0xff5040, toneMapped: false });
 const glowBelly = new THREE.MeshBasicMaterial({ color: 0xff7a20, toneMapped: false });
+const iceMat = new THREE.MeshStandardMaterial({ color: 0xa8e4ff, roughness: 0.15, metalness: 0.1, emissive: 0x1a4a6a, transparent: true, opacity: 0.88 });
+const charMat = new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 1 });
 const skinTints = [0xd8cfae, 0xb8b49a, 0xa8b090, 0xc9b28c, 0x9e9a8a, 0xe0d8c0];
 const clothTints = [0x5a5a5e, 0x6a5440, 0x46505e, 0x807a72, 0x46523e, 0x8a3a30, 0x5a6478, 0x38383c];
 let skinMats, clothMats, pantsMats;
@@ -185,10 +187,12 @@ export class ZombieManager {
     if (head) mult = 2.6;
     else if (part && part !== 'torso') mult = 0.85;
     if (z.def.armor && !head && !opts.explosive) mult *= z.def.armor;
+    if (z.frozenT > 0) mult *= 2; // frozen zombies are brittle
     const dmg = amount * mult;
     z.hp -= dmg;
     const pos = _v.copy(z.pos); pos.y += (head ? 2 : 1.2) * z.scale;
-    this.game.effects.blood(pos, dir, head ? 10 : 6, 5);
+    if (z.frozenT > 0) this.game.effects.sparks(pos, 4, 0xc8f0ff, 4);
+    else if (!opts.flame) this.game.effects.blood(pos, dir, head ? 10 : 6, 5);
     // knockback/stagger
     if (dir) z.vel.addScaledVector(dir, Math.min(6, amount * 0.04) / (z.type === 'brute' ? 4 : 1));
     // dismemberment
@@ -217,9 +221,76 @@ export class ZombieManager {
     }
   }
 
+  // ---------- status effects ----------
+  ignite(z, dur = 3.5) {
+    if (z.dead || z.frozenT > 0) return;
+    z.burnT = Math.max(z.burnT || 0, dur);
+  }
+
+  freeze(z, dur = 4) {
+    if (z.dead) return;
+    z.burnT = 0;
+    if (!(z.frozenT > 0)) for (const m of z.parts) { m.userData.mat = m.material; m.material = iceMat; }
+    z.frozenT = Math.max(z.frozenT || 0, dur);
+  }
+
+  thaw(z) {
+    z.frozenT = 0; z.chill = 0;
+    for (const m of z.parts) if (m.userData.mat) { m.material = m.userData.mat; m.userData.mat = null; }
+  }
+
+  // Burning, frozen and black-hole states. Returns true if the zombie's normal AI should be skipped.
+  status(z, dt) {
+    const fx = this.game.effects;
+    if (z.vortex) {
+      const v = z.vortex;
+      if (v.dead) { z.vortex = null; return false; }
+      const to = _v.copy(v.pos).sub(z.pos); to.y -= 1;
+      const d = to.length();
+      const pull = Math.min(d, (5 + Math.max(0, 16 - d) * 1.2) * dt);
+      z.pos.addScaledVector(to.normalize(), pull);
+      z.vel.set(0, 0, 0);
+      z.root.rotation.y += dt * 9; z.root.rotation.z = Math.sin(this.game.time * 7 + z.phase) * 0.6;
+      this.animate(z, dt, 6);
+      return true;
+    }
+    if (z.root.rotation.z) z.root.rotation.z *= 0.8;
+    if (z.frozenT > 0) {
+      z.frozenT -= dt;
+      z.vel.x = 0; z.vel.z = 0; z.vel.y -= 22 * dt;
+      this.game.physics.move(z.pos, z.vel, dt, z.r, z.h, 0.65 * z.scale, z.res);
+      if (Math.random() < dt * 3) fx.glow.spawn({ pos: _v.set(z.pos.x + (Math.random() - 0.5), z.pos.y + Math.random() * 2 * z.scale, z.pos.z + (Math.random() - 0.5)), vel: _v2.set(0, 0.3, 0), size: 0.05, life: 0.6, g: 0, color: 0xc8f0ff });
+      if (z.frozenT <= 0) this.thaw(z);
+      return true;
+    }
+    if (z.burnT > 0) {
+      z.burnT -= dt;
+      z.burnFx = (z.burnFx || 0) - dt;
+      if (z.burnFx <= 0) {
+        z.burnFx = 0.09;
+        fx.smoke(_v.set(z.pos.x + (Math.random() - 0.5) * 0.5, z.pos.y + (0.6 + Math.random() * 1.2) * z.scale, z.pos.z + (Math.random() - 0.5) * 0.5), { size: 0.7 * z.scale, life: 0.5, fire: true, opacity: 0.8, grow: 1.2, vel: _v2.set(0, 2.5, 0) });
+        if (Math.random() < 0.3) fx.smoke(_v.set(z.pos.x, z.pos.y + 2 * z.scale, z.pos.z), { size: 1, life: 1.6, color: 0x2a2624, opacity: 0.35, grow: 2, vel: _v2.set(0, 2, 0) });
+      }
+      const dps = (25 + this.game.round * 4) * (z.type === 'brute' ? 2.5 : 1);
+      z.hp -= dps * dt;
+      if (z.hp <= 0) {
+        for (const m of z.parts) m.material = charMat;
+        this.kill(z, null, { fire: true, explosive: true });
+        return true;
+      }
+    }
+    return false;
+  }
+
   kill(z, dir, opts = {}) {
     if (z.dead) return;
     z.dead = true;
+    if (z.frozenT > 0) {
+      // shatter into ice
+      const c = _v2.copy(z.pos); c.y += 1.1 * z.scale;
+      for (let i = 0; i < 26; i++) this.game.effects.solid.spawn({ pos: c, vel: new THREE.Vector3((Math.random() - 0.5) * 10, 2 + Math.random() * 7, (Math.random() - 0.5) * 10), size: 0.1 + Math.random() * 0.22, life: 3 + Math.random() * 2, floor: this.game.effects.floorAt(c.x, c.y, c.z), color: 0xa8e4ff });
+      opts = { ...opts, shatter: true };
+    }
     const power = opts.explosive ? 14 : opts.melee ? 9 : 5 + Math.random() * 3;
     const center = _v2.copy(z.pos); center.y += 1.2 * z.scale;
     const d = dir ? dir.clone() : new THREE.Vector3(0, 0, 0);
@@ -308,6 +379,9 @@ export class ZombieManager {
         continue;
       }
 
+      if (this.status(z, dt)) continue;
+      const burning = z.burnT > 0;
+
       // ---- choose a goal ----
       let goal = null, goalY = pp.y, direct = false;
       const bait = game.activeBait();
@@ -389,7 +463,7 @@ export class ZombieManager {
 
       // ---- move ----
       const attacking = z.windup > 0;
-      let speed = z.speed * (attacking ? 0.35 : 1);
+      let speed = z.speed * (attacking ? 0.35 : 1) * (burning ? 1.25 : 1);
       if (distP < 1.0 * z.scale && Math.abs(dy) < 1.5) speed = 0;
       const len = Math.hypot(desired.x, desired.z) || 1;
       const ax = (desired.x / len) * speed, az = (desired.z / len) * speed;

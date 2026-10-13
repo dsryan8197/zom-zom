@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { WEAPONS, TIER_COLORS, gunModel } from './weapons.js';
+import { WEAPONS, TIER_COLORS, gunModel, weaponDef, UPGRADE_COST, ELEMENTS } from './weapons.js';
+import { gm, build, mergedGunModel, mergeByMaterial } from './gunmodels.js';
+import { modelGroup } from './models.js';
 import { SPECIALS } from './player.js';
 import { sfx } from './audio.js';
 import { tex } from './textures.js';
@@ -25,6 +27,8 @@ export class Pickups {
   }
 
   makeAmmoMesh() {
+    const crate = modelGroup('ammoBox', 0.85); // Poly Haven ammo box
+    if (crate) return crate;
     const g = new THREE.Group();
     const b = new THREE.Mesh(this.ammoGeo, this.ammoMat); b.castShadow = true; g.add(b);
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.1, 0.47), this.ammoStripe); g.add(s);
@@ -34,9 +38,12 @@ export class Pickups {
   add(kind, pos, data = {}) {
     let mesh;
     const g = new THREE.Group();
-    if (kind === 'ammo') { mesh = this.makeAmmoMesh(); }
-    else if (kind === 'gun') {
-      mesh = gunModel(data.id); mesh.scale.setScalar(1.7);
+    if (kind === 'ammo') {
+      mesh = this.makeAmmoMesh();
+      // a faint yellow beam so ammo is easy to spot from a distance (it's rarer now)
+      const beam = new THREE.Mesh(beamGeo, beamMat(0xffd040, 0.08)); beam.scale.set(0.35, 2.4, 0.35); beam.position.y = -0.85; g.add(beam); g.userData.beam = beam;
+    } else if (kind === 'gun') {
+      mesh = mergedGunModel(data.id, data.level || 1, data.element); mesh.scale.setScalar(1.7);
       const ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.75, 24), beamMat(TIER_COLORS[WEAPONS[data.id].tier], 0.7));
       ring.rotation.x = -Math.PI / 2; ring.position.y = -0.85; g.add(ring);
       const beam = new THREE.Mesh(beamGeo, beamMat(TIER_COLORS[WEAPONS[data.id].tier], 0.12)); beam.scale.set(0.5, 3.2, 0.5); beam.position.y = -0.85; g.add(beam); g.userData.beam = beam;
@@ -59,8 +66,16 @@ export class Pickups {
 
   remove(it) { it.alive = false; this.game.scene.remove(it.group); }
 
+  // Ammo is deliberately sparse: spots are thinned out so no two are closer than ~40 m, and each
+  // box takes a minute to come back. It's always worth a short detour, never lying around everywhere.
   populate(town) {
-    for (const s of town.ammoSpots) this.add('ammo', new THREE.Vector3(s.x, s.y, s.z), { respawn: 25, spot: s });
+    const spots = [...town.ammoSpots].sort(() => Math.random() - 0.5), chosen = [];
+    for (const sp of spots) {
+      if (chosen.some((c) => Math.hypot(c.x - sp.x, c.z - sp.z) < 40)) continue;
+      chosen.push(sp);
+    }
+    this.ammoSpotsInUse = chosen;
+    for (const s of chosen) this.add('ammo', new THREE.Vector3(s.x, s.y, s.z), { respawn: 60, spot: s });
     this.refreshGuns(1);
     for (const s of town.specialSpots) if (Math.random() < 0.5) this.add('special', new THREE.Vector3(s.x, s.y, s.z), { id: this.randomSpecial() });
   }
@@ -107,21 +122,22 @@ export class Pickups {
       if (it.group.userData.beam) it.group.userData.beam.visible = d > 4;
       if (d > 1.8 || Math.abs(dy) > 1.6) continue;
       if (it.kind === 'ammo') {
-        game.weapons.addAmmo(0.45); sfx.pickup(); game.hud.feed('+AMMO', ''); this.remove(it);
+        game.weapons.addAmmo(0.35); sfx.pickup(); game.hud.feed('+AMMO', ''); this.remove(it);
       } else if (it.kind === 'grenades') {
         game.weapons.grenades = Math.min(8, game.weapons.grenades + 3); sfx.pickup(); game.hud.feed('+3 GRENADES', ''); this.remove(it);
       } else if (it.kind === 'gun') {
         const W = game.weapons;
-        const id = it.data.id;
-        const owned = W.slots.find((s) => s && s.id === id);
-        if (owned) { owned.reserve = owned.def.reserve; owned.mag = owned.def.mag; sfx.pickup(); game.hud.feed(`${WEAPONS[id].name} AMMO MAXED`, ''); this.remove(it); continue; }
+        const id = it.data.id, lvl = it.data.level || 1;
+        const name = weaponDef(id, lvl, it.data.element).name;
+        const owned = W.slots.find((s) => s && s.id === id && (s.level || 1) >= lvl);
+        if (owned) { owned.reserve = owned.def.reserve; owned.mag = owned.def.mag; sfx.pickup(); game.hud.feed(`${owned.def.name} AMMO MAXED`, ''); this.remove(it); continue; }
         if (W.freeSlot() >= 0) {
           const slot = W.freeSlot();
-          W.give(id, slot); if (it.data.mag != null) { W.slots[slot].mag = it.data.mag; W.slots[slot].reserve = it.data.reserve; }
+          W.give(id, slot, { level: lvl, element: it.data.element }); if (it.data.mag != null) { W.slots[slot].mag = it.data.mag; W.slots[slot].reserve = it.data.reserve; }
           W.select(slot);
-          sfx.bigPickup(); game.hud.feed(`GOT ${WEAPONS[id].name}`, 'combo'); this.remove(it);
+          sfx.bigPickup(); game.hud.feed(`GOT ${name}`, 'combo'); this.remove(it);
         } else if (d < best) {
-          best = d; prompt = { it, text: `<kbd>X</kbd> swap ${W.w.def.name} for <b style="color:#${TIER_COLORS[WEAPONS[id].tier].toString(16)}">${WEAPONS[id].name}</b>` };
+          best = d; prompt = { it, text: `<kbd>X</kbd> swap ${W.w.def.name} for <b style="color:#${TIER_COLORS[WEAPONS[id].tier].toString(16)}">${name}</b>` };
         }
       } else if (it.kind === 'special') {
         const pl = game.player, id = it.data.id;
@@ -141,11 +157,11 @@ export class Pickups {
       const W = game.weapons, cur = W.w;
       const pos = it.pos.clone(); pos.y -= 0.9;
       this.remove(it);
-      W.give(it.data.id, W.cur);
+      W.give(it.data.id, W.cur, { level: it.data.level || 1, element: it.data.element });
       if (it.data.mag != null) { W.w.mag = it.data.mag; W.w.reserve = it.data.reserve; }
-      // drop the old gun where the new one was
-      const drop = this.add('gun', pos.add(new THREE.Vector3(0.8, 0, 0)), { id: cur.id, mag: cur.mag, reserve: cur.reserve });
-      sfx.bigPickup(); game.hud.feed(`GOT ${WEAPONS[it.data.id].name}`, 'combo');
+      // drop the old gun where the new one was (upgrades and all)
+      this.add('gun', pos.add(new THREE.Vector3(0.8, 0, 0)), { id: cur.id, mag: cur.mag, reserve: cur.reserve, level: cur.level, element: cur.element });
+      sfx.bigPickup(); game.hud.feed(`GOT ${W.w.def.name}`, 'combo');
     } else if (it.kind === 'special') {
       const pl = game.player, old = pl.special?.id;
       const pos = it.pos.clone(); pos.y -= 0.9;
@@ -413,5 +429,70 @@ export class Specials {
     for (const t of this.turrets) this.game.scene.remove(t.group);
     this.walls.length = 0; this.turrets.length = 0;
     this.wallCharges = 3; this.wallRecharge = 0;
+  }
+}
+
+// ---------- Upgrade workbenches ----------
+// Spend points on the gun in your hands: MK II, then MK III with a random elemental round.
+export class Workbenches {
+  constructor(game) {
+    this.game = game;
+    this.list = [];
+    for (const b of game.town.benches) this.list.push(this.build(b));
+  }
+
+  build(b) {
+    const m = gm(), game = this.game;
+    const screen = new THREE.MeshBasicMaterial({ color: 0xb070ff, toneMapped: false });
+    const wood = m.wood, metal = m.metal;
+    const g = mergeByMaterial(build([
+      [2.4, 0.1, 1.0, 0, 0.95, 0, wood], [0.08, 0.95, 0.08, -1.1, 0.47, -0.42, metal], [0.08, 0.95, 0.08, 1.1, 0.47, -0.42, metal],
+      [0.08, 0.95, 0.08, -1.1, 0.47, 0.42, metal], [0.08, 0.95, 0.08, 1.1, 0.47, 0.42, metal], [2.3, 0.06, 0.9, 0, 0.3, 0, metal],
+      [2.4, 1.2, 0.06, 0, 1.6, -0.5, wood], // pegboard
+      [0.3, 0.06, 0.04, -0.8, 1.9, -0.45, m.steel], [0.06, 0.4, 0.04, -0.5, 1.7, -0.45, m.red], [0.4, 0.05, 0.04, 0.6, 1.95, -0.45, m.steel],
+      [0.05, 0.3, 0.04, 0.95, 1.6, -0.45, m.yellow], [0.3, 0.18, 0.2, -0.75, 1.1, 0.1, metal], [0.12, 0.06, 0.3, -0.75, 1.2, 0.1, m.steel], // vise
+      [0.6, 0.4, 0.06, 0.55, 1.35, -0.3, m.poly], [0.52, 0.32, 0.01, 0.55, 1.35, -0.265, screen], [0.08, 0.3, 0.08, 0.55, 1.1, -0.35, metal],
+      [0.5, 0.25, 0.35, 0.3, 0.45, 0.05, m.red], // toolbox under the bench
+    ]));
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    // a floating gun hologram so you know what it's for
+    const holo = mergedGunModel('ar', 3, 'shock'); holo.scale.setScalar(1.6); holo.position.set(0, 1.55, 0.15);
+    holo.traverse((o) => { if (o.isMesh) { o.material = screen; o.castShadow = false; } });
+    g.add(holo);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 6, 1, true).translate(0, 0.5, 0), beamMat(0xb070ff, 0.1)); beam.scale.set(1, 26, 1);
+    g.add(beam);
+    const lamp = new THREE.PointLight(0xb070ff, 4, 7, 1.6); lamp.position.set(0, 2.2, 0.4); g.add(lamp);
+    g.position.set(b.x, b.y, b.z); g.rotation.y = b.rot || 0;
+    game.scene.add(g);
+    return { ...b, group: g, holo, beam, screen };
+  }
+
+  update(dt) {
+    const game = this.game, p = game.player.pos, W = game.weapons, t = game.time;
+    let near = null;
+    for (const b of this.list) {
+      b.holo.rotation.y = t * 1.2;
+      b.screen.color.setHSL(0.76, 0.8, 0.55 + Math.sin(t * 3) * 0.1);
+      const d = Math.hypot(p.x - b.x, p.z - b.z);
+      b.beam.visible = d > 6;
+      if (d < 2.6 && Math.abs(p.y - b.y) < 1.6) near = b;
+    }
+    if (!near || !W.w) return;
+    const w = W.w;
+    if (w.level >= 3) { game.hud.prompt(`<span class="bench">${w.def.name} is fully upgraded</span>`); return; }
+    const cost = UPGRADE_COST(w.def, w.level || 1);
+    const next = (w.level || 1) === 1 ? 'MK II — more damage, bigger mag, faster reload' : 'MK III — elemental rounds';
+    const afford = game.score >= cost;
+    game.hud.prompt(`<kbd>X</kbd> <span class="bench">UPGRADE ${WEAPONS[w.id].name} → ${next}</span> <b style="color:${afford ? '#7f7' : '#f66'}">${cost.toLocaleString()} pts</b>`);
+    if (!game.input.hit('KeyX')) return;
+    if (!afford) { game.hud.toast(`NEED ${(cost - game.score).toLocaleString()} MORE POINTS`); sfx.dry(); return; }
+    game.score -= cost;
+    W.upgrade();
+    sfx.bigPickup(); sfx.wall();
+    game.effects.sparks(new THREE.Vector3(near.x, near.y + 1.3, near.z), 40, 0xc090ff, 8);
+    game.effects.flashLight(new THREE.Vector3(near.x, near.y + 1.6, near.z), 0xb070ff, 40, 0.5, 12);
+    const el = w.element ? ` — ${ELEMENTS[w.element].name} ROUNDS` : '';
+    game.hud.banner(w.def.name.split(' · ')[0], `UPGRADED${el}`, 2.5);
+    game.hud.slotsDirty();
   }
 }

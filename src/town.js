@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { worldMat } from './textures.js';
+import { PropLayer } from './models.js';
+import { addLandmarks } from './landmarks.js';
 
 // Builds the whole town out of boxes: render geometry is merged per material,
 // and every solid box is also registered with the physics world.
@@ -16,6 +18,14 @@ class Builder {
   constructor(physics) {
     this.physics = physics;
     this.groups = new Map(); // material -> geometries
+    this.props = new PropLayer();
+  }
+
+  // A solid box rendered with a GLB model fitted into it (falls back to a textured box).
+  prop(model, x0, y0, z0, x1, y1, z1, mat, opts = {}) {
+    if (!this.props.place(model, x0, y0, z0, x1, y1, z1, opts)) return this.box(x0, y0, z0, x1, y1, z1, mat, opts);
+    if (opts.collide === false) return null;
+    return this.physics.addBox(x0, y0, z0, x1, y1, z1, { walkable: !!opts.walkable, noGround: !!opts.noGround });
   }
 
   box(x0, y0, z0, x1, y1, z1, mat, opts = {}) {
@@ -55,6 +65,7 @@ class Builder {
       scene.add(mesh);
       geos.forEach((g) => g.dispose());
     }
+    this.props.finish(scene);
   }
 }
 
@@ -90,7 +101,7 @@ export function buildTown(scene, physics) {
   const B = new Builder(physics);
   const town = {
     buildings: [], pois: [], ammoSpots: [], gunSpots: [], specialSpots: [], ladders: [], ziplines: [],
-    lamps: [],
+    lamps: [], explosives: [], benches: [], emitters: [],
   };
 
   // ---------- Ground & roads ----------
@@ -166,7 +177,7 @@ export function buildTown(scene, physics) {
       const lane = k % 2 === 0 ? laneA : laneB;
       const hole = hasFlight ? { x0: xs - 0.2, x1: xs + L + 0.2, z0: lane[0], z1: lane[1] } : null;
       const top = k === floors - 1;
-      slab(B, x0, z0, x1, z1, fy + fh - 0.3, fy + fh, top ? (o.roof || 'roof') : floorMat, hole);
+      slab(B, x0, z0, x1, z1, fy + fh - 0.3, fy + fh, top ? (o.roof || 'flatRoof') : floorMat, hole);
 
       // stairs
       if (hasFlight) {
@@ -191,12 +202,22 @@ export function buildTown(scene, physics) {
         for (let p = 0; p < nProps; p++) {
           const px = ix0 + rnd() * (ix1 - ix0 - 2), pz = iz0 + rnd() * (iz1 - iz0 - 2);
           const kind = rnd();
-          if (kind < 0.4) B.box(px, fy, pz, px + 1.2, fy + 1.2, pz + 1.2, 'crate');
-          else if (kind < 0.7) { // table
-            B.box(px, fy + 0.85, pz, px + 2.2, fy + 1.0, pz + 1.2, 'wood');
-            B.box(px + 0.1, fy, pz + 0.1, px + 0.3, fy + 0.85, pz + 0.3, 'wood', { collide: false });
-            B.box(px + 1.9, fy, pz + 0.9, px + 2.1, fy + 0.85, pz + 1.1, 'wood', { collide: false });
-          } else B.box(px, fy, pz, px + 0.6, fy + 2.2, pz + 2.4, 'metal'); // shelf
+          const special = o.props && rnd() < 0.7 ? pick(o.props) : null;
+          if (special === 'desk') B.prop('desk', px, fy, pz, px + 1.6, fy + 0.8, pz + 0.8, 'metal', { rotY: rnd() < 0.5 ? 0 : Math.PI });
+          else if (special === 'plasticCrate') { for (let k = 0; k < 1 + Math.floor(rnd() * 3); k++) B.prop('plasticCrate', px, fy + k * 0.32, pz, px + 0.6, fy + (k + 1) * 0.32, pz + 0.42, 'crate'); }
+          else if (special === 'milCrate') B.prop('milCrate', px, fy, pz, px + 1.2, fy + 0.6, pz + 0.6, 'crate');
+          else if (special === 'medBox') B.prop('medBox', px, fy, pz, px + 0.6, fy + 0.35, pz + 0.4, 'crate', { collide: false });
+          else if (special === 'wetSign') B.prop('wetSign', px, fy, pz, px + 0.45, fy + 0.65, pz + 0.3, null, { collide: false });
+          else if (special === 'jerrycan') B.prop('jerrycan', px, fy, pz, px + 0.45, fy + 0.5, pz + 0.2, null, { collide: false });
+          else if (kind < 0.4) B.prop('crate', px, fy, pz, px + 1.2, fy + 1.2, pz + 1.2, 'crate');
+          else if (kind < 0.7) { // table: model for looks, a thin top slab for collision
+            if (B.props.place('table', px, fy, pz, px + 2.2, fy + 1.0, pz + 1.2)) B.box(px, fy + 0.85, pz, px + 2.2, fy + 1.0, pz + 1.2, null);
+            else {
+              B.box(px, fy + 0.85, pz, px + 2.2, fy + 1.0, pz + 1.2, 'wood');
+              B.box(px + 0.1, fy, pz + 0.1, px + 0.3, fy + 0.85, pz + 0.3, 'wood', { collide: false });
+              B.box(px + 1.9, fy, pz + 0.9, px + 2.1, fy + 0.85, pz + 1.1, 'wood', { collide: false });
+            }
+          } else B.prop('rack', px, fy, pz, px + 0.6, fy + 2.2, pz + 2.4, 'metal', { rotY: Math.PI / 2 }); // shelf
         }
         const cx = (ix0 + ix1) / 2, cz = (iz0 + iz1) / 2;
         town.gunSpots.push({ x: cx + (rnd() - 0.5) * 3, y: fy, z: cz + (rnd() - 0.5) * 3 });
@@ -226,15 +247,15 @@ export function buildTown(scene, physics) {
   }
 
   // ---------- Buildings ----------
-  const tower = building({ name: 'Apartments', x0: 14, z0: -48, w: 22, d: 22, floors: 5, wall: 'brick', floor: 'wood', roofAccess: true,
+  const tower = building({ name: 'Apartments', x0: 14, z0: -48, w: 22, d: 22, floors: 5, wall: 'brick', floor: 'wood', roofAccess: true, props: ['plasticCrate', 'medBox'],
     doors: [{ side: 'w', at: 15 }, { side: 's', at: 11 }] });
-  const clinic = building({ name: 'Clinic', x0: 14, z0: 16, w: 30, d: 24, floors: 3, wall: 'whiteTile', floor: 'tiles', roofAccess: true,
+  const clinic = building({ name: 'Clinic', x0: 14, z0: 16, w: 30, d: 24, floors: 3, wall: 'whiteTile', floor: 'tiles', roofAccess: true, props: ['medBox', 'wetSign', 'desk', 'medBox'],
     doors: [{ side: 'w', at: 12, w: 4 }, { side: 'e', at: 12 }, { side: 'n', at: 20 }] });
-  building({ name: 'General Store', x0: -38, z0: -42, w: 24, d: 24, floors: 2, wall: 'yellowSiding', floor: 'wood', roofAccess: true,
+  building({ name: 'General Store', x0: -38, z0: -42, w: 24, d: 24, floors: 2, wall: 'yellowSiding', floor: 'wood', roofAccess: true, props: ['plasticCrate', 'jerrycan', 'plasticCrate'],
     doors: [{ side: 'e', at: 14, w: 4 }, { side: 's', at: 6 }] });
   const diner = building({ name: 'Diner', x0: -36, z0: 14, w: 22, d: 16, floors: 1, wall: 'plaster', floor: 'tiles', roof: 'redMetal',
     doors: [{ side: 'e', at: 8, w: 3.4 }, { side: 'w', at: 8 }] });
-  building({ name: 'Police Station', x0: -38, z0: -84, w: 24, d: 26, floors: 2, wall: 'darkConcrete', floor: 'tiles', roofAccess: true,
+  building({ name: 'Police Station', x0: -38, z0: -84, w: 24, d: 26, floors: 2, wall: 'darkConcrete', floor: 'tiles', roofAccess: true, props: ['desk', 'desk', 'milCrate'],
     doors: [{ side: 'e', at: 13, w: 3.4 }, { side: 'n', at: 12 }] });
   const church = building({ name: 'Church', x0: -62, z0: 36, w: 18, d: 34, floors: 1, fh: 8, wall: 'brick', floor: 'wood', roof: 'roof',
     doors: [{ side: 'n', at: 9, w: 3.4, h: 4.5 }, { side: 'e', at: 26 }], parapet: 0.6 });
@@ -243,12 +264,12 @@ export function buildTown(scene, physics) {
   B.box(-56, 18, 37, -50, 22, 41, 'roof');
   B.box(-53.4, 22, 38.6, -52.6, 26, 39.4, 'metal');
   B.box(-55, 24, 38.6, -51, 24.8, 39.4, 'metal');
-  const warehouse = building({ name: 'Warehouse', x0: 60, z0: -40, w: 40, d: 34, floors: 1, fh: 9, wall: 'metal', floor: 'darkConcrete', roof: 'metal',
+  const warehouse = building({ name: 'Warehouse', x0: 60, z0: -40, w: 40, d: 34, floors: 1, fh: 9, wall: 'corrugated', floor: 'darkConcrete', roof: 'corrugated',
     doors: [{ side: 'w', at: 17, w: 7, h: 6 }, { side: 's', at: 10 }, { side: 'n', at: 30, w: 6, h: 6 }], parapet: 0.5 });
   // warehouse crate stacks
   for (let i = 0; i < 9; i++) {
     const cx = 66 + rnd() * 26, cz = -30 + rnd() * 20, hgt = 1 + Math.floor(rnd() * 3);
-    B.box(cx, 0, cz, cx + 2, hgt * 1.4, cz + 2, 'crate');
+    for (let k = 0; k < hgt; k++) B.prop('crate', cx, k * 1.4, cz, cx + 2, (k + 1) * 1.4, cz + 2, 'crate', { rotY: rnd() < 0.5 ? 0 : Math.PI / 2 });
   }
   // gas station store
   building({ name: 'Gas Mart', x0: 16, z0: 104, w: 14, d: 16, floors: 1, wall: 'siding', floor: 'tiles', roof: 'roof',
@@ -307,7 +328,9 @@ export function buildTown(scene, physics) {
     B.box(px - 0.6, 0, pz - 1.2, px + 0.6, 0.3, pz + 1.2, 'darkConcrete');
     B.box(px - 0.4, 0.3, pz - 0.5, px + 0.4, 2.0, pz + 0.5, worldMat('redMetal', { color: 0xdddddd }));
   }
-  B.box(-22, 0, 126, -20, 0.6, 128, 'redMetal'); // dumpster-ish
+  B.prop('trash', -22, 0, 126, -20.8, 1.1, 127.2, 'redMetal'); // bins behind the gas mart
+  B.prop('trash', -20.6, 0, 126, -19.4, 1.1, 127.2, 'redMetal');
+  B.prop('utility', 30.2, 0, 112, 31.2, 1.6, 113.2, 'metal', { rotY: Math.PI / 2 });
   // sign
   B.box(-20.3, 0, 100, -19.7, 9, 100.6, 'metal');
   B.box(-22, 9, 99.8, -18, 11.5, 100.8, worldMat('plaster', { color: 0xd04020, emissive: 0x401000 }));
@@ -338,9 +361,18 @@ export function buildTown(scene, physics) {
 
   // ---------- Props: cars, barrels, trees, lamps ----------
   const carColors = [0x6a2a24, 0x2b3d52, 0x4d4d48, 0x6b6a3a, 0x30442f, 0x8a8a84];
+  const carModels = ['sedan', 'police', 'van', 'suv', 'truck', 'taxi', 'hatchback', 'delivery', 'ambulance', 'coveredCar', 'sedan', 'suv'];
   const car = (x, z, alongZ, color) => {
-    const m = worldMat('metal', { color });
+    const model = pick(carModels);
     const [w, l] = alongZ ? [2.0, 4.4] : [4.4, 2.0];
+    // collision is the same body + cabin boxes as before; the model just has to fit inside them
+    if (B.props.place(model, x - w / 2, 0, z - l / 2, x + w / 2, 2.0, z + l / 2, { rotY: (alongZ ? 0 : Math.PI / 2) + (rnd() < 0.5 ? Math.PI : 0), fit: 'uniform' })) {
+      const [cw, cl] = alongZ ? [1.8, 2.4] : [2.4, 1.8];
+      B.box(x - w / 2, 0.3, z - l / 2, x + w / 2, 1.2, z + l / 2, null);
+      B.box(x - cw / 2, 1.2, z - cl / 2, x + cw / 2, 1.95, z + cl / 2, null);
+      return;
+    }
+    const m = worldMat('metal', { color });
     B.box(x - w / 2, 0.3, z - l / 2, x + w / 2, 1.2, z + l / 2, m);
     const [cw, cl] = alongZ ? [1.8, 2.4] : [2.4, 1.8];
     B.box(x - cw / 2, 1.2, z - cl / 2, x + cw / 2, 1.95, z + cl / 2, worldMat('window'));
@@ -351,12 +383,21 @@ export function buildTown(scene, physics) {
   for (const [x, z, a] of carSpots) car(x, z, a, pick(carColors));
   // school bus blocking part of main street
   B.box(-4.5, 0.4, -140, -1.5, 3.2, -128, worldMat('yellowSiding', { color: 0xffcc40 }));
-  // barrels & barricades
+  addLandmarks(B, town, physics, scene, rnd);
+
+  // barrels & barricades (the red ones explode when shot)
   for (let i = 0; i < 26; i++) {
     const bx = (rnd() - 0.5) * 300, bz = (rnd() - 0.5) * 300;
     if (Math.abs(bx) < 10 || Math.abs(bz) < 10) continue;
     if (physics.overlaps(bx - 1, 0.1, bz - 1, bx + 1, 2, bz + 1)) continue;
-    B.box(bx - 0.45, 0, bz - 0.45, bx + 0.45, 1.2, bz + 0.45, rnd() < 0.5 ? 'redMetal' : 'metal');
+    const r = rnd();
+    if (r < 0.4) {
+      const handle = B.props.place('barrel', bx - 0.45, 0, bz - 0.45, bx + 0.45, 1.2, bz + 0.45, { rotY: rnd() * 6.28 });
+      const box = handle ? physics.addBox(bx - 0.45, 0, bz - 0.45, bx + 0.45, 1.2, bz + 0.45) : B.box(bx - 0.45, 0, bz - 0.45, bx + 0.45, 1.2, bz + 0.45, 'redMetal');
+      const ex = { box, handle: handle || null, pos: new THREE.Vector3(bx, 0.6, bz) };
+      box.explosive = ex; town.explosives.push(ex);
+    } else if (r < 0.7) B.prop('barrel2', bx - 0.45, 0, bz - 0.45, bx + 0.45, 1.2, bz + 0.45, 'metal', { rotY: rnd() * 6.28 });
+    else B.prop('trash', bx - 0.4, 0, bz - 0.4, bx + 0.4, 1.0, bz + 0.4, 'metal', { rotY: rnd() * 6.28 });
   }
   for (const [x0, z0, x1, z1] of [[-6, 60, -2, 60.8], [2, -80, 6, -79.2], [40, -6, 40.8, -2], [-120, 2, -119.2, 6]]) {
     B.box(x0, 0, z0, x1, 1.1, z1, worldMat('concrete', { color: 0xcfcfc4 }));
@@ -407,7 +448,7 @@ export function buildTown(scene, physics) {
   }
 
   // ---------- Points of interest (supply drop sites) ----------
-  town.pois = [
+  town.pois.push(...[
     { name: 'Town Square', x: 12, z: 12 },
     { name: 'Gas Station', x: 0, z: 132 },
     { name: 'The Farm', x: -130, z: -110 },
@@ -422,7 +463,7 @@ export function buildTown(scene, physics) {
     { name: 'West Fields', x: -130, z: -45 },
     { name: 'North Road', x: 14, z: -150 },
     { name: 'Diner', x: -25, z: 40 },
-  ];
+  ]);
 
   // outdoor ammo spots scattered around roads
   for (let i = 0; i < 40; i++) {

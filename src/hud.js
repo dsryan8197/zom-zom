@@ -112,9 +112,11 @@ export class HUD {
     }
     if (this._slotsDirty) {
       this._slotsDirty = false;
-      E.slots.innerHTML = W.slots.map((s, i) => `<div class="${i === W.cur ? 'active' : ''} t${s ? s.def.tier : 0}">${s ? s.def.name : '— empty —'}<small>${i + 1}</small></div>`).join('');
+      E.slots.innerHTML = W.slots.map((s, i) => `<div class="${i === W.cur ? 'active' : ''} t${s ? s.def.tier : 0} up${s?.level || 1}">${s ? s.def.name : '— empty —'}<small>${i + 1}</small></div>`).join('');
     }
     E.cross.classList.toggle('ads', W.ads > 0.6);
+    const scoped = !!(w && w.def.zoom && W.ads > 0.85);
+    if (scoped !== this._scoped) { this._scoped = scoped; $('scope').classList.toggle('on', scoped); E.cross.style.visibility = scoped ? 'hidden' : ''; }
     const spread = w ? 6 + (w.def.spread || 0.01) * 600 + W.kick * 8 : 8;
     E.cross.style.setProperty('--spread', `${spread}px`);
 
@@ -163,6 +165,9 @@ export class HUD {
       if (it.kind === 'gun') c.fillStyle = '#' + (TIER_COLORS[(g.weaponsDefs[it.data.id] || {}).tier || 2]).toString(16).padStart(6, '0');
       c.fillRect(it.pos.x - 1.2, it.pos.z - 1.2, 2.4, 2.4);
     }
+    // upgrade workbenches
+    c.fillStyle = '#c070ff';
+    for (const b of g.benches?.list || []) { c.fillRect(b.x - 3, b.z - 3, 6, 6); }
     // turrets / walls
     c.fillStyle = '#60b0ff';
     for (const t of g.specials.turrets) c.fillRect(t.group.position.x - 2, t.group.position.z - 2, 4, 4);

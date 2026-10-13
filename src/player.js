@@ -104,12 +104,20 @@ export class Player {
     }
   }
 
+  surface() {
+    const b = this.game.buildingAt(this.pos.x, this.pos.z);
+    if (b) return this.pos.y > 0.5 || /House|Farm|Store|Church|Apart/.test(b.name) ? 'wood' : 'concrete';
+    if (this.pos.y > 0.5 || Math.abs(this.pos.x) < 9.5 || Math.abs(this.pos.z) < 9.5) return 'concrete';
+    return 'grass';
+  }
+
   update(dt, input) {
     const game = this.game;
     if (this.dead) return;
     // look
-    this.yaw -= input.lookDX * input.sensitivity * (game.weapons.ads > 0.5 ? 0.6 : 1);
-    this.pitch -= input.lookDY * input.sensitivity * (game.weapons.ads > 0.5 ? 0.6 : 1);
+    const aimK = game.weapons.ads > 0.5 ? (game.weapons.w?.def.zoom ? 0.28 : 0.6) : 1;
+    this.yaw -= input.lookDX * input.sensitivity * aimK;
+    this.pitch -= input.lookDY * input.sensitivity * aimK;
     this.pitch = Math.max(-1.55, Math.min(1.55, this.pitch));
 
     // wish direction
@@ -206,6 +214,13 @@ export class Player {
     game.physics.move(this.pos, this.vel, dt, this.r, this.h, 0.65, this.res);
     this.onGround = this.res.onGround;
     if (this.onGround && !wasGround && fallV < -10) this.landDip = Math.min(0.35, -fallV * 0.015);
+    // footsteps: surface depends on where you are (wood/tile indoors, pavement on the streets, grass/dirt elsewhere)
+    if (this.onGround && !wasGround && fallV < -4) sfx.step(this.surface(), Math.min(2, -fallV / 8));
+    const hs = Math.hypot(this.vel.x, this.vel.z);
+    if (this.onGround && !this.skating && hs > 1) {
+      this.stepDist = (this.stepDist || 0) + hs * dt;
+      if (this.stepDist > 2.3) { this.stepDist = 0; sfx.step(this.surface()); }
+    }
     if (this.res.hitCeil && this.grapple) this.grapple = null;
     if (this.pos.y < -20) this.pos.set(4, 1, 4);
 

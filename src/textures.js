@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
-// Mix of a few downloaded textures (three.js example textures, downscaled) and
-// procedurally painted pixel textures to get the chunky "blocky but gritty" look.
+// World surfaces use CC0 PBR texture sets from Poly Haven (colour + OpenGL normal + packed
+// AO/roughness/metal "ARM" map), on blocky geometry. A few small things (zombie skin, windows,
+// leaves) are still painted procedurally for the chunky look.
 
 const loader = new THREE.TextureLoader();
 const cache = {};
@@ -123,19 +124,81 @@ const painters = {
     grime(g, s, 40, '#000', 4);
   },
   // Zombie skins: atlas-free, just grimey cloth/skin.
-  zSkin: (g, s) => { noiseFill(g, s, [210, 204, 186], 22, 2); grime(g, s, 30, '#5a1a10', 3); },
+  zSkin: (g, s) => {
+    noiseFill(g, s, [210, 204, 186], 22, 2);
+    grime(g, s, 60, '#3a3020', 4); // dirt
+    for (let i = 0; i < 10; i++) { // dried blood and bruises
+      g.fillStyle = `rgba(${70 + rnd() * 50 | 0},${8 + rnd() * 12 | 0},8,${0.35 + rnd() * 0.45})`;
+      g.fillRect(rnd() * s, rnd() * s, 2 + rnd() * 8, 2 + rnd() * 6);
+    }
+  },
   zCloth: (g, s) => {
     noiseFill(g, s, [170, 170, 172], 30, 2);
-    for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(${110 + rnd() * 60 | 0},10,10,.7)`; g.fillRect(rnd() * s, rnd() * s, 2 + rnd() * 6, 1 + rnd() * 3); }
+    g.fillStyle = 'rgba(0,0,0,.12)'; // weave
+    for (let i = 0; i < s; i += 4) { g.fillRect(i, 0, 1, s); g.fillRect(0, i, s, 1); }
+    grime(g, s, 90, '#20180c', 6);
+    for (let i = 0; i < 22; i++) { g.fillStyle = `rgba(${90 + rnd() * 60 | 0},8,8,${0.5 + rnd() * 0.4})`; g.fillRect(rnd() * s, rnd() * s, 2 + rnd() * 9, 1 + rnd() * 5); }
+    g.fillStyle = 'rgba(0,0,0,.35)'; // torn holes
+    for (let i = 0; i < 6; i++) g.fillRect(rnd() * s, rnd() * s, 2 + rnd() * 3, 2 + rnd() * 3);
   },
 };
 
-export function tex(name, repeat = 1) {
+// Poly Haven texture sets in public/textures/pbr/<id>_{col,nrm,arm}.jpg.
+// tint multiplies the colour map; scale = metres per texture repeat (UVs are in world units).
+const PBR = {
+  concrete: { id: 'concrete_wall_006', scale: 4, tint: 0xd8d4cc },
+  darkConcrete: { id: 'concrete_floor_worn_001', scale: 4, tint: 0x8a8c90 },
+  plaster: { id: 'worn_plaster_wall', scale: 4, tint: 0xe8e0d0 },
+  whiteTile: { id: 'long_white_tiles', scale: 2.5, tint: 0xe4e6e6 },
+  tiles: { id: 'worn_tile_floor', scale: 3, tint: 0xd8d8d8 },
+  asphalt: { id: 'asphalt_02', scale: 6, tint: 0x9a9a9a },
+  road: { id: 'asphalt_02', scale: 6, tint: 0x9a9a9a },
+  sidewalk: { id: 'concrete_pavement', scale: 3, tint: 0xc8c4bc },
+  dirt: { id: 'dirt_floor', scale: 5, tint: 0x9a8a74 },
+  field: { id: 'raked_dirt', scale: 4, tint: 0x8a7a64 },
+  grass: { id: 'sparse_grass', scale: 6, tint: 0xa8a090 },
+  metal: { id: 'rusty_metal_02', scale: 3, tint: 0x8c9094, metal: 0.6 },
+  redMetal: { id: 'rusty_metal_02', scale: 3, tint: 0xa8382c, metal: 0.4 },
+  corrugated: { id: 'worn_corrugated_iron', scale: 3, tint: 0xc0c4c8, metal: 0.7 },
+  plate: { id: 'metal_plate', scale: 2, tint: 0x9a9a9a, metal: 0.8 },
+  siding: { id: 'weathered_plank_siding', scale: 3, tint: 0x9aa8b0 },
+  yellowSiding: { id: 'weathered_plank_siding', scale: 3, tint: 0xd8c08a },
+  barnWood: { id: 'weathered_plank_siding', scale: 3, tint: 0xa8483a },
+  wood: { id: 'weathered_planks', scale: 3, tint: 0xc8b8a8 },
+  roof: { id: 'roof_07', scale: 3, tint: 0x9a948e },
+  flatRoof: { id: 'asphalt_02', scale: 4, tint: 0x6e6a66 }, // tar
+  canvas: { id: 'denim_fabric', scale: 1.5, tint: 0x8a8a6a }, // tents, cots
+  bark: { id: 'bark_brown_02', scale: 2, tint: 0xb0a090 },
+  hay: { id: 'reed_roof_03', scale: 1.5, tint: 0xe8d090 },
+  brick: { id: 'red_bricks_04', scale: 3, tint: 0xd0c4bc },
+};
+
+function loadMap(url, srgb) {
+  const t = loader.load(url);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+const pbrCache = {};
+export function pbrMaps(id) {
+  if (!pbrCache[id]) {
+    const base = `./textures/pbr/${id}`;
+    const arm = loadMap(`${base}_arm.jpg`, false);
+    pbrCache[id] = { map: loadMap(`${base}_col.jpg`, true), normalMap: loadMap(`${base}_nrm.jpg`, false), aoMap: arm, roughnessMap: arm, metalnessMap: arm };
+  }
+  return pbrCache[id];
+}
+
+export function tex(name) {
   if (!cache[name]) {
-    if (['brick', 'wood', 'crate', 'grass', 'tiles'].includes(name)) {
-      cache[name] = finish(loader.load(window.__TEX?.[name] || `./textures/${name}.png`));
+    if (['crate'].includes(name) || (window.__TEX?.[name] && !PBR[name])) {
+      cache[name] = finish(loader.load(window.__TEX?.[name] || `./textures/${name}.png`), false);
+    } else if (PBR[name]) {
+      cache[name] = pbrMaps(PBR[name].id).map;
     } else {
-      cache[name] = canvasTex(name.startsWith('z') ? 32 : 64, painters[name]);
+      cache[name] = canvasTex(64, painters[name]);
     }
   }
   return cache[name];
@@ -152,10 +215,24 @@ export const MATS = {
 export function worldMat(name, opts = {}) {
   const key = name + JSON.stringify(opts);
   if (!matCache[key]) {
-    matCache[key] = new THREE.MeshStandardMaterial({
-      map: tex(name), roughness: 0.92, metalness: name.includes('etal') ? 0.35 : 0.0, ...opts,
-    });
-    matCache[key].userData.scale = MATS[name] || 3;
+    const def = PBR[name];
+    let m;
+    if (def) {
+      // ARM map: R = ambient occlusion, G = roughness, B = metalness
+      m = new THREE.MeshStandardMaterial({
+        ...pbrMaps(def.id), color: def.tint, roughness: 1, metalness: def.metal ? 1 : 0,
+        normalScale: new THREE.Vector2(1.2, 1.2), aoMapIntensity: 1, ...opts,
+      });
+      if (!def.metal) m.metalnessMap = null;
+      else m.metalness = def.metal;
+      m.userData.scale = def.scale;
+    } else {
+      m = new THREE.MeshStandardMaterial({
+        map: tex(name), roughness: 0.92, metalness: name.includes('etal') ? 0.35 : 0.0, ...opts,
+      });
+      m.userData.scale = MATS[name] || 3;
+    }
+    matCache[key] = m;
   }
   return matCache[key];
 }

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { sfx } from './audio.js';
-import { tex } from './textures.js';
+import { fx } from './effects.js';
+import { gm, build, gunModel as makeGunModel, ELEMENTS } from './gunmodels.js';
+
+export { ELEMENTS };
 
 // tier: 1 starter, 2 common, 3 rare, 4 crazy
 export const WEAPONS = {
@@ -8,140 +11,76 @@ export const WEAPONS = {
   revolver: { name: '.44 REVOLVER', tier: 1, auto: false, rate: 3.2, dmg: 130, mag: 6, reserve: 60, spread: 0.007, recoil: 0.06, sound: 'revolver', reload: 1.7, pierce: 2 },
   smg: { name: 'SMG', tier: 2, auto: true, rate: 14, dmg: 30, mag: 40, reserve: 360, spread: 0.022, recoil: 0.007, sound: 'smg', reload: 1.3 },
   ar: { name: 'ASSAULT RIFLE', tier: 2, auto: true, rate: 10, dmg: 46, mag: 30, reserve: 300, spread: 0.012, recoil: 0.011, sound: 'ar', reload: 1.6, pierce: 1 },
+  burst: { name: 'BURST RIFLE', tier: 2, auto: false, burst: 3, burstGap: 0.065, rate: 3.2, dmg: 50, mag: 30, reserve: 240, spread: 0.007, recoil: 0.01, sound: 'ar', reload: 1.7, pierce: 1 },
   shotgun: { name: 'PUMP SHOTGUN', tier: 2, auto: false, rate: 1.4, dmg: 32, pellets: 9, mag: 6, reserve: 60, spread: 0.075, recoil: 0.07, sound: 'shotgun', reload: 2.0, pump: true },
-  autoshotgun: { name: 'AUTO SHOTGUN', tier: 3, auto: true, rate: 4, dmg: 28, pellets: 8, mag: 16, reserve: 128, spread: 0.08, recoil: 0.05, sound: 'shotgun', reload: 2.2 },
+  doublebarrel: { name: 'DOUBLE BARREL', tier: 2, auto: false, rate: 5, dmg: 34, pellets: 12, mag: 2, reserve: 40, spread: 0.11, recoil: 0.13, sound: 'shotgun', reload: 1.5, knock: 12 },
+  autoshotgun: { name: 'AUTO SHOTGUN', tier: 3, auto: true, rate: 4, dmg: 28, pellets: 8, mag: 16, reserve: 128, spread: 0.08, recoil: 0.05, sound: 'autoshotgun', reload: 2.2 },
   lmg: { name: 'LMG', tier: 3, auto: true, rate: 12, dmg: 54, mag: 100, reserve: 500, spread: 0.016, recoil: 0.01, sound: 'lmg', reload: 3.0, pierce: 2 },
+  sniper: { name: 'SNIPER RIFLE', tier: 3, auto: false, rate: 1.1, dmg: 520, mag: 5, reserve: 40, spread: 0.0004, hipSpread: 0.03, recoil: 0.09, sound: 'sniper', reload: 2.4, pierce: 6, zoom: true },
+  crossbow: { name: 'CROSSBOW', tier: 3, auto: false, rate: 1.4, dmg: 300, mag: 1, reserve: 30, spread: 0.001, recoil: 0.03, reload: 0.9, projectile: 'bolt', speed: 90 },
+  flamethrower: { name: 'FLAMETHROWER', tier: 3, auto: true, rate: 24, dmg: 11, mag: 150, reserve: 450, spread: 0, recoil: 0.002, reload: 2.4, flame: true, range: 11, element: 'fire' },
+  launcher: { name: 'GRENADE LAUNCHER', tier: 3, auto: false, rate: 1.6, dmg: 380, mag: 6, reserve: 36, spread: 0.004, recoil: 0.06, reload: 2.6, projectile: 'gl', speed: 30 },
+  ricochet: { name: 'RICOCHET SMG', tier: 3, auto: true, rate: 13, dmg: 34, mag: 45, reserve: 360, spread: 0.02, recoil: 0.007, sound: 'smg', reload: 1.4, bounces: 3 },
   minigun: { name: 'MINIGUN', tier: 4, auto: true, rate: 26, dmg: 42, mag: 300, reserve: 900, spread: 0.028, recoil: 0.004, sound: 'minigun', reload: 3.2, spinup: 0.45, pierce: 1 },
-  rocket: { name: 'ROCKET LAUNCHER', tier: 4, auto: false, rate: 1.3, dmg: 400, mag: 1, reserve: 20, spread: 0.002, recoil: 0.08, reload: 1.3, projectile: 'rocket' },
-  raygun: { name: 'RAY GUN', tier: 4, auto: false, rate: 4.5, dmg: 260, mag: 20, reserve: 200, spread: 0.004, recoil: 0.02, reload: 1.8, projectile: 'plasma' },
+  rocket: { name: 'ROCKET LAUNCHER', tier: 4, auto: false, rate: 1.3, dmg: 400, mag: 1, reserve: 20, spread: 0.002, recoil: 0.08, reload: 1.3, projectile: 'rocket', speed: 48 },
+  raygun: { name: 'RAY GUN', tier: 4, auto: false, rate: 4.5, dmg: 260, mag: 20, reserve: 200, spread: 0.004, recoil: 0.02, reload: 1.8, projectile: 'plasma', speed: 75 },
   tesla: { name: 'TESLA CANNON', tier: 4, auto: false, rate: 2.4, dmg: 320, mag: 12, reserve: 96, spread: 0, recoil: 0.04, reload: 2.2, chain: 7 },
+  sawblade: { name: 'BUZZSAW LAUNCHER', tier: 4, auto: false, rate: 1.5, dmg: 240, mag: 4, reserve: 32, spread: 0.002, recoil: 0.05, reload: 2.0, projectile: 'saw', speed: 34 },
+  blackhole: { name: 'BLACK HOLE GUN', tier: 4, auto: false, rate: 0.8, dmg: 900, mag: 2, reserve: 12, spread: 0.002, recoil: 0.06, reload: 2.8, projectile: 'vortex', speed: 28 },
+  cryo: { name: 'CRYO BLASTER', tier: 4, auto: true, rate: 9, dmg: 30, mag: 60, reserve: 300, spread: 0.01, recoil: 0.006, reload: 1.9, element: 'cryo', tracerColor: 0x9ae8ff, cryoSound: true },
 };
 export const TIER_COLORS = [0, 0xdddddd, 0x4ab0ff, 0xb070ff, 0xff9a2a];
 
-// ---------- blocky gun models ----------
-const M = {};
-function gm() {
-  if (M.dark) return M;
-  M.dark = new THREE.MeshStandardMaterial({ color: 0x50555c, roughness: 0.55, metalness: 0.15 });
-  M.black = new THREE.MeshStandardMaterial({ color: 0x383a3f, roughness: 0.6, metalness: 0.1 });
-  M.gray = new THREE.MeshStandardMaterial({ color: 0x5a5e64, roughness: 0.45, metalness: 0.3 });
-  M.wood = new THREE.MeshStandardMaterial({ map: tex('wood'), color: 0x9a6a40, roughness: 0.8 });
-  M.olive = new THREE.MeshStandardMaterial({ color: 0x4a5236, roughness: 0.8 });
-  M.red = new THREE.MeshStandardMaterial({ color: 0x9a1a14, roughness: 0.6 });
-  M.teal = new THREE.MeshStandardMaterial({ color: 0x2a8a8a, roughness: 0.4, metalness: 0.6 });
-  M.copper = new THREE.MeshStandardMaterial({ color: 0xb8683a, roughness: 0.35, metalness: 0.9 });
-  M.dot = new THREE.MeshBasicMaterial({ color: 0xff2020, toneMapped: false });
-  M.green = new THREE.MeshBasicMaterial({ color: 0x40ff70, toneMapped: false });
-  M.blue = new THREE.MeshBasicMaterial({ color: 0x60c8ff, toneMapped: false });
-  M.bat = new THREE.MeshStandardMaterial({ map: tex('wood'), color: 0xc89a60, roughness: 0.7 });
-  M.tape = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
-  M.nail = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.9, roughness: 0.3 });
-  return M;
+// ---------- upgrades (workbenches) ----------
+// MK II: more damage, bigger mags, faster reloads. MK III: all of that again plus an elemental round.
+export const UPGRADE_COST = (def, level) => (level === 1 ? 1500 + def.tier * 500 : 4000 + def.tier * 1000);
+const ELEMENT_KEYS = Object.keys(ELEMENTS);
+export function randomElement(id) {
+  const base = WEAPONS[id].element;
+  const pool = ELEMENT_KEYS.filter((e) => e !== base);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+export function weaponDef(id, level = 1, element = null) {
+  const b = WEAPONS[id];
+  if (level <= 1) return b;
+  const k = level === 2 ? { dmg: 1.6, mag: 1.5, reserve: 1.5, reload: 0.75, rate: 1.15 } : { dmg: 2.3, mag: 2, reserve: 2, reload: 0.6, rate: 1.3 };
+  return {
+    ...b,
+    dmg: b.dmg * k.dmg, mag: Math.ceil(b.mag * k.mag), reserve: Math.ceil(b.reserve * k.reserve), reload: b.reload * k.reload, rate: b.rate * k.rate,
+    pierce: (b.pierce || 0) + level - 1,
+    element: level >= 3 ? element || b.element : b.element,
+    name: `${b.name} ${level === 2 ? 'MK II' : 'MK III'}${level >= 3 && element ? ' · ' + ELEMENTS[element].name : ''}`,
+    level, upgraded: true,
+  };
 }
 
-function build(parts) {
+export function gunModel(id, level = 1, element = null) { return makeGunModel(id, level, element); }
+
+// Muzzle flash: two crossed flame cards along the barrel plus a star facing the shooter (Kenney CC0 sprites).
+const MUZZLE = ['muzzle_01', 'muzzle_02', 'muzzle_03', 'muzzle_04', 'muzzle_05'];
+function buildFlash() {
+  const mk = (map, color) => new THREE.MeshBasicMaterial({ map, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, fog: false });
   const g = new THREE.Group();
-  for (const [w, h, d, x, y, z, mat, rx = 0] of parts) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z); m.rotation.x = rx;
-    g.add(m);
+  const side = mk(fx(MUZZLE[0]), 0xffd8a0);
+  const cardGeo = new THREE.PlaneGeometry(0.34, 0.7).translate(0, 0.32, 0); // flame base at the muzzle
+  for (let i = 0; i < 2; i++) {
+    const p = new THREE.Mesh(cardGeo, side);
+    p.rotation.set(-Math.PI / 2, 0, i * Math.PI / 2, 'ZXY'); // lay along the barrel, then spin about it
+    g.add(p);
   }
+  const star = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.48), mk(fx("scorch_01"), 0xffc070));
+  g.add(star);
+  const core = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), mk(fx("circle_05"), 0xfff2d0));
+  g.add(core);
+  g.renderOrder = 11;
+  g.traverse((o) => { o.renderOrder = 11; });
+  g.userData = { side, star: star.material };
   return g;
-}
-
-// hollow holo/red-dot sight: a frame you look through with a glowing dot in the middle
-function sight(y, z, size = 0.05) {
-  const m = gm(), h = size / 2, t = 0.006;
-  return [[t, size, 0.012, -h, y, z, m.black], [t, size, 0.012, h, y, z, m.black], [size + t, t, 0.012, 0, y + h, z, m.black],
-    [size + 0.01, 0.014, 0.05, 0, y - h - 0.004, z + 0.01, m.black], [0.006, 0.006, 0.002, 0, y, z - 0.004, m.dot]];
-}
-
-export function gunModel(id) {
-  const m = gm();
-  let parts, muzzleZ = -0.5, sightY = 0.07;
-  switch (id) {
-    case 'rifle':
-      parts = [[0.055, 0.09, 0.26, 0, -0.01, 0.24, m.wood], [0.06, 0.08, 0.42, 0, 0, -0.02, m.dark], [0.03, 0.03, 0.36, 0, 0.015, -0.4, m.black],
-        [0.05, 0.05, 0.3, 0, -0.02, -0.25, m.wood], [0.04, 0.13, 0.06, 0, -0.1, -0.02, m.black], [0.02, 0.05, 0.02, 0, 0.045, -0.56, m.black],
-        ...sight(0.075, 0.02)];
-      muzzleZ = -0.58; sightY = 0.075; break;
-    case 'revolver':
-      parts = [[0.04, 0.12, 0.055, 0, -0.08, 0.07, m.wood, -0.35], [0.045, 0.065, 0.13, 0, 0, 0.0, m.gray], [0.065, 0.065, 0.07, 0, 0.002, -0.02, m.dark],
-        [0.028, 0.034, 0.2, 0, 0.012, -0.16, m.gray], [0.01, 0.025, 0.012, 0, 0.04, -0.25, m.black], [0.02, 0.02, 0.03, 0, -0.04, 0.02, m.black]];
-      muzzleZ = -0.27; sightY = 0.045; break;
-    case 'smg':
-      parts = [[0.055, 0.09, 0.3, 0, 0, -0.02, m.black], [0.03, 0.03, 0.12, 0, 0.01, -0.22, m.dark], [0.035, 0.2, 0.05, 0, -0.14, -0.04, m.dark],
-        [0.04, 0.1, 0.05, 0, -0.08, 0.1, m.black, -0.3], [0.02, 0.05, 0.22, 0, 0.0, 0.24, m.gray], ...sight(0.075, 0.0)];
-      muzzleZ = -0.3; sightY = 0.075; break;
-    case 'ar':
-      parts = [[0.06, 0.1, 0.4, 0, 0, 0, m.black], [0.065, 0.08, 0.24, 0, 0.0, -0.3, m.dark], [0.028, 0.028, 0.2, 0, 0.01, -0.5, m.black],
-        [0.045, 0.16, 0.07, 0, -0.12, -0.08, m.dark, 0.25], [0.04, 0.1, 0.05, 0, -0.08, 0.1, m.black, -0.3], [0.05, 0.09, 0.22, 0, -0.01, 0.3, m.black],
-        ...sight(0.088, -0.02, 0.055)];
-      muzzleZ = -0.62; sightY = 0.088; break;
-    case 'shotgun':
-      parts = [[0.06, 0.09, 0.28, 0, -0.02, 0.28, m.wood], [0.065, 0.08, 0.26, 0, 0, 0, m.dark], [0.035, 0.035, 0.6, 0, 0.02, -0.4, m.gray],
-        [0.03, 0.03, 0.5, 0, -0.025, -0.35, m.black], [0.06, 0.06, 0.18, 0, -0.03, -0.32, m.wood], [0.015, 0.015, 0.015, 0, 0.045, -0.68, m.dot]];
-      muzzleZ = -0.7; sightY = 0.045; break;
-    case 'autoshotgun':
-      parts = [[0.07, 0.11, 0.42, 0, 0, 0, m.olive], [0.04, 0.04, 0.4, 0, 0.02, -0.38, m.black], [0.12, 0.12, 0.1, 0, -0.12, -0.08, m.black],
-        [0.05, 0.1, 0.05, 0, -0.09, 0.12, m.black, -0.3], [0.06, 0.09, 0.2, 0, 0, 0.3, m.olive], ...sight(0.088, -0.02)];
-      muzzleZ = -0.6; sightY = 0.088; break;
-    case 'lmg':
-      parts = [[0.08, 0.12, 0.5, 0, 0, 0, m.olive], [0.04, 0.04, 0.5, 0, 0.02, -0.45, m.black], [0.12, 0.12, 0.12, 0.06, -0.1, -0.05, m.olive],
-        [0.05, 0.11, 0.06, 0, -0.1, 0.14, m.black, -0.3], [0.06, 0.1, 0.24, 0, -0.01, 0.36, m.black], [0.01, 0.15, 0.01, 0.03, -0.08, -0.55, m.black, 0.5],
-        [0.01, 0.15, 0.01, -0.03, -0.08, -0.55, m.black, 0.5], ...sight(0.098, 0)];
-      muzzleZ = -0.72; sightY = 0.098; break;
-    case 'minigun': {
-      parts = [[0.14, 0.14, 0.3, 0, 0, 0.05, m.dark], [0.05, 0.14, 0.05, 0, 0.12, 0.05, m.black], [0.04, 0.12, 0.05, 0, -0.12, 0.12, m.black]];
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2;
-        parts.push([0.025, 0.025, 0.6, Math.cos(a) * 0.045, Math.sin(a) * 0.045, -0.35, m.gray]);
-      }
-      parts.push([0.12, 0.12, 0.03, 0, 0, -0.55, m.black], [0.12, 0.12, 0.03, 0, 0, -0.2, m.black]);
-      muzzleZ = -0.68; sightY = 0.16; break;
-    }
-    case 'rocket':
-      parts = [[0.13, 0.13, 0.95, 0, 0.02, -0.12, m.olive], [0.15, 0.15, 0.06, 0, 0.02, -0.6, m.black], [0.15, 0.15, 0.06, 0, 0.02, 0.36, m.black],
-        [0.04, 0.12, 0.05, 0, -0.1, 0.0, m.black], [0.04, 0.1, 0.05, 0, -0.1, -0.22, m.black], [0.06, 0.06, 0.1, -0.09, 0.08, -0.1, m.black],
-        [0.06, 0.06, 0.1, 0, 0.02, -0.66, m.red]];
-      muzzleZ = -0.7; sightY = 0.08; break;
-    case 'raygun':
-      parts = [[0.07, 0.1, 0.2, 0, 0, 0, m.teal], [0.05, 0.12, 0.06, 0, -0.1, 0.06, m.dark, -0.3], [0.04, 0.04, 0.2, 0, 0.01, -0.18, m.gray],
-        [0.1, 0.1, 0.02, 0, 0.01, -0.12, m.green], [0.1, 0.1, 0.02, 0, 0.01, -0.2, m.green], [0.07, 0.07, 0.04, 0, 0.01, -0.29, m.red],
-        [0.05, 0.05, 0.06, 0, 0.08, -0.02, m.green]];
-      muzzleZ = -0.32; sightY = 0.06; break;
-    case 'tesla':
-      parts = [[0.09, 0.11, 0.36, 0, 0, 0, m.dark], [0.05, 0.12, 0.06, 0, -0.1, 0.1, m.black, -0.3]];
-      for (let i = 0; i < 4; i++) parts.push([0.09, 0.09, 0.035, 0, 0.01, -0.22 - i * 0.07, m.copper]);
-      parts.push([0.03, 0.03, 0.34, 0, 0.01, -0.3, m.gray], [0.08, 0.08, 0.08, 0, 0.01, -0.5, m.blue], [0.06, 0.06, 0.06, 0, 0.1, 0.05, m.blue]);
-      muzzleZ = -0.55; sightY = 0.07; break;
-    case 'bat':
-      parts = [[0.045, 0.045, 0.3, 0, 0, 0.0, m.tape], [0.06, 0.06, 0.4, 0, 0, -0.34, m.bat], [0.08, 0.08, 0.3, 0, 0, -0.68, m.bat],
-        [0.12, 0.01, 0.01, 0, 0.01, -0.7, m.nail], [0.01, 0.12, 0.01, 0, 0, -0.62, m.nail], [0.12, 0.01, 0.01, 0, -0.02, -0.76, m.nail]];
-      muzzleZ = -0.8; break;
-  }
-  const g = build(parts);
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.015, muzzleZ); g.add(muzzle);
-  g.userData.muzzle = muzzle; g.userData.sightY = sightY;
-  return g;
-}
-
-function flashTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gr.addColorStop(0, 'rgba(255,255,230,1)'); gr.addColorStop(0.25, 'rgba(255,200,90,0.9)'); gr.addColorStop(1, 'rgba(255,120,0,0)');
-  g.fillStyle = gr;
-  g.beginPath();
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2, r = i % 2 ? 12 : 32;
-    g.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r);
-  }
-  g.fill();
-  return new THREE.CanvasTexture(c);
 }
 
 // ---------- weapon system (owned by the player) ----------
+const _v = new THREE.Vector3(), _d = new THREE.Vector3();
+
 export class WeaponSystem {
   constructor(game) {
     this.game = game;
@@ -149,16 +88,13 @@ export class WeaponSystem {
     this.cur = 0;
     this.grenades = 3;
     this.cool = 0; this.reloadT = 0; this.switchT = 0; this.batT = 0; this.spin = 0; this.pumpT = 0;
-    this.kick = 0; this.ads = 0; this.bobT = 0; this.flashT = 0;
+    this.kick = 0; this.ads = 0; this.bobT = 0; this.flashT = 0; this.burstLeft = 0; this.burstT = 0;
     this.projectiles = [];
     this.holder = new THREE.Group(); // attached to the camera
     game.camera.add(this.holder);
     this.batModel = gunModel('bat'); this.batModel.visible = false; this.batModel.scale.setScalar(0.7);
     this.holder.add(this.batModel);
-    const fmat = new THREE.MeshBasicMaterial({ map: flashTex(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
-    this.flash = new THREE.Group();
-    for (let i = 0; i < 2; i++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28), fmat); p.rotation.y = i * Math.PI / 2; this.flash.add(p); }
-    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), fmat); this.flash.add(front);
+    this.flash = buildFlash();
     this.flash.visible = false;
     this.models = {};
     this.give('rifle'); this.give('revolver');
@@ -167,9 +103,9 @@ export class WeaponSystem {
 
   get w() { return this.slots[this.cur]; }
 
-  give(id, slotHint) {
-    const def = WEAPONS[id];
-    const inst = { id, def, mag: def.mag, reserve: def.reserve };
+  give(id, slotHint, { level = 1, element = null } = {}) {
+    const def = weaponDef(id, level, element);
+    const inst = { id, level, element, def, mag: def.mag, reserve: def.reserve };
     let slot = slotHint ?? this.slots.findIndex((s) => !s);
     if (slot < 0) slot = this.cur;
     const old = this.slots[slot];
@@ -178,23 +114,42 @@ export class WeaponSystem {
     return old;
   }
 
+  // Workbench upgrade of the gun in hand: MK II, then MK III with a random elemental round.
+  upgrade() {
+    const w = this.w;
+    if (!w || w.level >= 3) return false;
+    w.level++;
+    if (w.level === 3) w.element = randomElement(w.id);
+    w.def = weaponDef(w.id, w.level, w.element);
+    w.mag = w.def.mag; w.reserve = w.def.reserve;
+    this.reloadT = 0;
+    this.select(this.cur, true);
+    return true;
+  }
+
   has(id) { return this.slots.some((s) => s && s.id === id); }
   freeSlot() { return this.slots.findIndex((s) => !s); }
+
+  modelFor(inst) {
+    const key = `${inst.id}:${inst.level || 1}:${inst.element || ''}`;
+    if (!this.models[key]) {
+      const gmod = gunModel(inst.id, inst.level, inst.element); gmod.scale.setScalar(0.62);
+      gmod.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.renderOrder = 10; } });
+      gmod.visible = false;
+      this.models[key] = gmod; this.holder.add(gmod);
+    }
+    return this.models[key];
+  }
 
   select(i, force = false) {
     if (!this.slots[i] || (i === this.cur && !force)) return;
     this.cur = i;
-    this.reloadT = 0; this.spin = 0;
+    this.reloadT = 0; this.spin = 0; this.burstLeft = 0;
     this.switchT = force ? 0.15 : 0.28;
     for (const m of Object.values(this.models)) m.visible = false;
-    const id = this.w.id;
-    if (!this.models[id]) {
-      const gmod = gunModel(id); gmod.scale.setScalar(0.62);
-      gmod.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.renderOrder = 10; } });
-      this.models[id] = gmod; this.holder.add(gmod);
-    }
-    const model = this.models[id];
+    const model = this.modelFor(this.w);
     model.visible = true;
+    this.model = model;
     model.userData.muzzle.add(this.flash);
     this.game.hud?.slotsDirty();
   }
@@ -210,6 +165,7 @@ export class WeaponSystem {
     const w = this.w;
     if (!w || this.reloadT > 0 || w.mag >= w.def.mag || w.reserve <= 0 || this.batT > 0) return;
     this.reloadT = w.def.reload;
+    this.burstLeft = 0;
     sfx.reload();
   }
 
@@ -235,25 +191,41 @@ export class WeaponSystem {
   }
 
   spawnProjectile(type, pos, vel, opts = {}) {
+    const m = gm();
     let mesh;
-    if (type === 'grenade') mesh = build([[0.12, 0.16, 0.12, 0, 0, 0, gm().olive], [0.05, 0.05, 0.05, 0, 0.1, 0, gm().gray]]);
-    else if (type === 'bait') mesh = build([[0.3, 0.35, 0.25, 0, 0, 0, gm().dark], [0.2, 0.2, 0.02, 0, 0, 0.13, gm().gray], [0.06, 0.06, 0.06, 0, 0.2, 0, gm().dot]]);
-    else if (type === 'rocket') mesh = build([[0.09, 0.09, 0.5, 0, 0, 0, gm().olive], [0.07, 0.07, 0.1, 0, 0, -0.28, gm().red]]);
-    else if (type === 'plasma') { mesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), gm().green); }
+    if (type === 'grenade') mesh = build([[0.12, 0.16, 0.12, 0, 0, 0, m.olive], [0.05, 0.05, 0.05, 0, 0.1, 0, m.steel]]);
+    else if (type === 'gl') mesh = build([[0.09, 0.09, 0.14, 0, 0, 0, m.olive], [0.092, 0.092, 0.03, 0, 0, -0.06, m.yellow], [0.06, 0.06, 0.04, 0, 0, -0.09, m.copper]]);
+    else if (type === 'bait') mesh = build([[0.3, 0.35, 0.25, 0, 0, 0, m.metal], [0.2, 0.2, 0.02, 0, 0, 0.13, m.steel], [0.06, 0.06, 0.06, 0, 0.2, 0, m.dot]]);
+    else if (type === 'rocket') mesh = build([[0.09, 0.09, 0.5, 0, 0, 0, m.olive], [0.07, 0.07, 0.1, 0, 0, -0.28, m.red]]);
+    else if (type === 'plasma') mesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.25), m.green);
+    else if (type === 'bolt') mesh = build([[0.02, 0.02, 0.6, 0, 0, 0, m.steel], [0.035, 0.035, 0.06, 0, 0, -0.3, m.red], [0.06, 0.002, 0.08, 0, 0, 0.26, m.red], [0.002, 0.06, 0.08, 0, 0, 0.26, m.red]]);
+    else if (type === 'saw') {
+      const parts = [[0.7, 0.02, 0.7, 0, 0, 0, m.chrome], [0.12, 0.04, 0.12, 0, 0, 0, m.metal]];
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; parts.push([0.12, 0.02, 0.05, Math.cos(a) * 0.36, 0, Math.sin(a) * 0.36, m.steel, 0, -a, 0]); }
+      mesh = build(parts);
+    } else if (type === 'vortex') {
+      mesh = new THREE.Group();
+      mesh.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshBasicMaterial({ color: 0x050008 })));
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: fx('circle_05'), color: 0xb060ff, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
+      halo.scale.setScalar(1.6); mesh.add(halo); mesh.userData.halo = halo;
+    }
     mesh.position.copy(pos);
+    mesh.traverse((o) => { o.castShadow = true; });
     this.game.scene.add(mesh);
-    const p = { type, mesh, pos: mesh.position, vel, life: type === 'grenade' ? 2.2 : type === 'bait' ? 9 : 4, ...opts };
+    const life = { grenade: 2.2, gl: 1.6, bait: 9, bolt: 6, saw: 3.5, vortex: 1.1 }[type] ?? 4;
+    const p = { type, mesh, pos: mesh.position, vel, life, hits: new Map(), bounces: 0, ...opts };
     this.projectiles.push(p);
     return p;
   }
 
   explodeProjectile(p) {
     p.dead = true; this.game.scene.remove(p.mesh);
+    const dmg = p.def?.dmg, el = p.def?.element;
     if (p.type === 'grenade') this.game.explode(p.pos.clone().add(new THREE.Vector3(0, 0.3, 0)), 7.5, 420, {});
-    else if (p.type === 'rocket') this.game.explode(p.pos.clone(), 6.5, WEAPONS.rocket.dmg, {});
-    else if (p.type === 'plasma') {
-      this.game.explode(p.pos.clone(), 3, WEAPONS.raygun.dmg, { color: 0x40ff70, small: true });
-    } else if (p.type === 'bait') this.game.explode(p.pos.clone().add(new THREE.Vector3(0, 0.4, 0)), 8, 500, {});
+    else if (p.type === 'gl') this.game.explode(p.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 6, dmg, { element: el });
+    else if (p.type === 'rocket') this.game.explode(p.pos.clone(), 6.5, dmg, { element: el });
+    else if (p.type === 'plasma') this.game.explode(p.pos.clone(), 3, dmg, { color: 0x40ff70, small: true, element: el });
+    else if (p.type === 'bait') this.game.explode(p.pos.clone().add(new THREE.Vector3(0, 0.4, 0)), 8, 500, {});
   }
 
   updateProjectiles(dt) {
@@ -262,7 +234,7 @@ export class WeaponSystem {
       const p = this.projectiles[i];
       if (p.dead) { this.projectiles.splice(i, 1); continue; }
       p.life -= dt;
-      if (p.type === 'grenade' || p.type === 'bait') {
+      if (p.type === 'grenade' || p.type === 'bait' || p.type === 'gl') {
         if (!p.landed) p.vel.y -= 22 * dt;
         const step = p.vel.length() * dt;
         if (step > 0) {
@@ -271,11 +243,16 @@ export class WeaponSystem {
           if (hit) {
             p.pos.addScaledVector(dir, Math.max(0, hit.dist - 0.1));
             const n = new THREE.Vector3(hit.nx, hit.ny, hit.nz);
-            p.vel.reflect(n).multiplyScalar(0.45);
+            p.vel.reflect(n).multiplyScalar(p.type === 'gl' ? 0.6 : 0.45);
             if (hit.ny > 0.5 && p.vel.length() < 2.5) { p.vel.set(0, 0, 0); p.landed = true; }
           } else p.pos.addScaledVector(p.vel, dt);
         }
         p.mesh.rotation.x += p.vel.length() * dt * 2;
+        if (p.type === 'gl') {
+          // launcher grenades go off on contact with a zombie
+          if (game.zombies.list.some((z) => !z.dead && z.pos.distanceToSquared(_v.copy(p.pos).setY(z.pos.y + 1)) < 1.6)) { this.explodeProjectile(p); continue; }
+          game.effects.glow.spawn({ pos: p.pos.clone(), vel: new THREE.Vector3(), size: 0.06, life: 0.15, g: 0, color: 0xffd040 });
+        }
         if (p.type === 'bait') {
           p.beepT = (p.beepT || 0) - dt;
           if (p.beepT <= 0) { p.beepT = 0.5; sfx.beep(p.pos); game.effects.glow.spawn({ pos: p.pos.clone().add(new THREE.Vector3(0, 0.3, 0)), vel: new THREE.Vector3(), size: 0.25, life: 0.15, g: 0, color: 0xff3030 }); }
@@ -283,6 +260,9 @@ export class WeaponSystem {
         if (p.life <= 0) this.explodeProjectile(p);
         continue;
       }
+      if (p.type === 'bolt') { this.updateBolt(p, dt); continue; }
+      if (p.type === 'saw') { this.updateSaw(p, dt); continue; }
+      if (p.type === 'vortex') { this.updateVortex(p, dt); continue; }
       // rockets & plasma: straight, explode on contact
       const step = p.vel.length() * dt;
       const dir = p.vel.clone().normalize();
@@ -305,6 +285,105 @@ export class WeaponSystem {
     }
   }
 
+  // Crossbow bolt: fast, slight drop, punches through every zombie in its path, sticks in walls.
+  updateBolt(p, dt) {
+    const game = this.game;
+    if (p.stuck) { if (p.life <= 0) { p.dead = true; game.scene.remove(p.mesh); } return; }
+    p.vel.y -= 4 * dt;
+    const step = p.vel.length() * dt, dir = _d.copy(p.vel).normalize();
+    const wall = game.physics.raycast(p.pos.x, p.pos.y, p.pos.z, dir.x, dir.y, dir.z, step);
+    const reach = wall ? wall.dist : step;
+    let o = p.pos.clone(), left = reach;
+    for (let k = 0; k < 6; k++) {
+      const zh = game.zombies.raycast(o, dir, left);
+      if (!zh) break;
+      if (!p.hits.has(zh.zombie)) { p.hits.set(zh.zombie, 1); game.damageZombie(zh.zombie, zh.part, p.def.dmg, dir.clone(), { element: p.def.element, bolt: true }); }
+      const adv = zh.dist + 0.4; o.addScaledVector(dir, adv); left -= adv;
+      if (left <= 0) break;
+    }
+    if (wall) {
+      p.pos.addScaledVector(dir, wall.dist - 0.25);
+      p.stuck = true; p.life = 8;
+      game.effects.impact(p.pos.clone(), new THREE.Vector3(wall.nx, wall.ny, wall.nz), dir);
+      sfx.impact(p.pos, 'wood');
+      if (p.def.element === 'blast') game.explode(p.pos.clone(), 4, 200, { noSelf: true, small: true });
+      return;
+    }
+    p.pos.addScaledVector(p.vel, dt);
+    p.mesh.lookAt(_v.copy(p.pos).add(dir));
+    if (p.life <= 0) { p.dead = true; game.scene.remove(p.mesh); }
+  }
+
+  // Buzzsaw: flies flat, ricochets off walls, carves limbs off anything it touches.
+  updateSaw(p, dt) {
+    const game = this.game;
+    const step = p.vel.length() * dt, dir = _d.copy(p.vel).normalize();
+    const hit = game.physics.raycast(p.pos.x, p.pos.y, p.pos.z, dir.x, dir.y, dir.z, step + 0.35);
+    if (hit) {
+      p.vel.reflect(new THREE.Vector3(hit.nx, hit.ny, hit.nz));
+      if (hit.ny > 0.5) p.vel.y = Math.abs(p.vel.y) * 0.3 + 1;
+      p.bounces++;
+      game.effects.sparks(p.pos, 10, 0xffd080, 9);
+      sfx.impact(p.pos, 'metal');
+    } else p.pos.addScaledVector(p.vel, dt);
+    p.vel.y -= 2 * dt;
+    p.mesh.rotation.y += dt * 40;
+    for (const z of game.zombies.list) {
+      if (z.dead) continue;
+      const c = _v.copy(z.pos); c.y += 1.1 * z.scale;
+      if (c.distanceToSquared(p.pos) > (0.9 + z.r) ** 2) continue;
+      const last = p.hits.get(z) || -1;
+      if (game.time - last < 0.35) continue;
+      p.hits.set(z, game.time);
+      const limbs = ['armL', 'armR', 'legL', 'legR', 'head', 'torso'];
+      const part = limbs[Math.floor(Math.random() * limbs.length)];
+      game.damageZombie(z, part, p.def.dmg, dir.clone(), { element: p.def.element, saw: true });
+      if (!z.dead && part !== 'torso' && part !== 'head') game.zombies.detach(z, part, dir.clone());
+      game.effects.blood(c, dir, 14, 7);
+    }
+    if (p.life <= 0 || p.bounces > 7) { p.dead = true; game.scene.remove(p.mesh); game.effects.sparks(p.pos, 16, 0xffd080, 6); }
+  }
+
+  // Black hole: an orb that flies until it hits something, then opens a singularity that drags the
+  // horde in, spins them round, and implodes.
+  updateVortex(p, dt) {
+    const game = this.game;
+    const halo = p.mesh.userData.halo;
+    halo.material.rotation += dt * 6;
+    if (!p.open) {
+      const step = p.vel.length() * dt, dir = _d.copy(p.vel).normalize();
+      const hit = game.physics.raycast(p.pos.x, p.pos.y, p.pos.z, dir.x, dir.y, dir.z, step + 0.3);
+      const zh = game.zombies.raycast(p.pos, dir, step + 0.5);
+      if (hit || zh || p.life <= 0) {
+        if (hit) p.pos.addScaledVector(dir, Math.max(0, hit.dist - 0.6));
+        p.pos.y = Math.max(p.pos.y, game.physics.groundHeight(p.pos.x, p.pos.z, p.pos.y + 1) + 1.6);
+        p.open = true; p.life = 3.4; p.t = 0;
+        game.effects.flashLight(p.pos, 0xb060ff, 30, 0.5, 30);
+        sfx.zap(p.pos);
+      } else p.pos.addScaledVector(p.vel, dt);
+      return;
+    }
+    p.t += dt;
+    halo.scale.setScalar(2.5 + Math.sin(p.t * 20) * 0.3 + Math.min(1, p.t) * 2);
+    p.mesh.children[0].scale.setScalar(1 + Math.min(1, p.t) * 1.5);
+    // swirl of debris streaming inward
+    for (let k = 0; k < 4; k++) {
+      const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 8;
+      const from = new THREE.Vector3(p.pos.x + Math.cos(a) * r, p.pos.y + (Math.random() - 0.5) * 4, p.pos.z + Math.sin(a) * r);
+      const v = p.pos.clone().sub(from).multiplyScalar(2.2).add(new THREE.Vector3(-Math.sin(a) * 6, 0, Math.cos(a) * 6));
+      game.effects.glow.spawn({ pos: from, vel: v, size: 0.08, life: 0.45, g: 0, color: k % 2 ? 0xb060ff : 0x40206a, floor: -10 });
+    }
+    for (const z of game.zombies.list) {
+      if (z.dead || z.pos.distanceTo(p.pos) > 16) continue;
+      z.vortex = p;
+    }
+    if (p.life <= 0) {
+      p.dead = true; game.scene.remove(p.mesh);
+      for (const z of game.zombies.list) if (z.vortex === p) z.vortex = null;
+      game.explode(p.pos.clone(), 7, p.def.dmg, { color: 0xb060ff, noSelf: true, element: p.def.element, label: 'SPAGHETTIFIED' });
+    }
+  }
+
   tryFire(triggerHeld, triggerPressed) {
     const w = this.w;
     if (!w || this.switchT > 0 || this.batT > 0) return;
@@ -313,7 +392,7 @@ export class WeaponSystem {
       this.spin = triggerHeld ? Math.min(def.spinup, this.spin + this.game.dt) : Math.max(0, this.spin - this.game.dt * 2);
       if (this.spin < def.spinup) return;
     }
-    if (this.cool > 0) return;
+    if (this.cool > 0 || this.burstLeft > 0) return;
     if (!(def.auto ? triggerHeld : triggerPressed)) return;
     if (this.reloadT > 0) {
       // allow interrupting a shotgun/revolver reload if there's ammo in the mag
@@ -323,43 +402,92 @@ export class WeaponSystem {
     w.mag--;
     this.cool = 1 / def.rate;
     this.fire(def);
-    if (w.mag === 0) setTimeout(() => this.reload(), 180);
+    if (def.burst) { this.burstLeft = Math.min(def.burst - 1, w.mag); this.burstT = def.burstGap; }
+    if (w.mag === 0 && !this.burstLeft) setTimeout(() => this.reload(), 180);
   }
 
   fire(def) {
     const game = this.game, cam = game.camera;
     const origin = cam.getWorldPosition(new THREE.Vector3());
     const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
-    const muzzle = this.models[this.w.id].userData.muzzle.getWorldPosition(new THREE.Vector3());
+    const muzzle = this.model.userData.muzzle.getWorldPosition(new THREE.Vector3());
     const spreadMul = this.ads > 0.5 ? 0.35 : 1;
-    this.kick = Math.min(1.2, this.kick + 0.35 + def.recoil * 4);
+    this.kick = Math.min(1.2, this.kick + (def.flame ? 0.03 : 0.35 + def.recoil * 4));
     game.player.pitch += def.recoil * (this.ads > 0.5 ? 0.6 : 1);
     game.player.yaw += (Math.random() - 0.5) * def.recoil * 0.5;
-    this.flashT = 0.045;
+    if (def.knock) game.player.vel.addScaledVector(fwd, -def.knock * 0.4);
+
+    if (def.flame) { this.fireFlame(origin, fwd, muzzle, def); return; }
+
+    this.flashT = 0.05;
     this.flash.rotation.z = Math.random() * Math.PI;
-    game.effects.flashLight(muzzle, def.projectile === 'plasma' ? 0x40ff70 : def.chain ? 0x60c8ff : 0xffb050, 6, 0.06, 12);
+    const fu = this.flash.userData;
+    const fcol = def.projectile === 'plasma' ? 0x60ff90 : def.chain ? 0x80d8ff : def.projectile === 'vortex' ? 0xc080ff : def.element === 'cryo' ? 0xa0f0ff : 0xffd8a0;
+    fu.side.map = fx(MUZZLE[Math.floor(Math.random() * MUZZLE.length)]);
+    fu.side.color.set(fcol); fu.star.color.set(fcol).multiplyScalar(0.85);
+    const big = def.pellets ? 1.5 : def.sound === 'smg' || def.sound === 'minigun' ? 0.8 : def.projectile === 'bolt' ? 0.3 : 1.1;
+    this.flash.scale.setScalar(big * (0.8 + Math.random() * 0.45));
+    game.effects.flashLight(muzzle, new THREE.Color(fcol).getHex(), 16 * big, 0.07, 16);
 
     if (def.projectile) {
       const dir = fwd.clone();
-      const vel = dir.multiplyScalar(def.projectile === 'rocket' ? 48 : 75);
-      this.spawnProjectile(def.projectile, muzzle.clone(), vel);
-      if (def.projectile === 'rocket') sfx.rocket(null); else sfx.laser(null);
+      const sp = def.spread * spreadMul;
+      dir.x += (Math.random() - 0.5) * 2 * sp; dir.y += (Math.random() - 0.5) * 2 * sp; dir.normalize();
+      const vel = dir.multiplyScalar(def.speed || 60);
+      if (def.projectile === 'gl') vel.y += 3;
+      this.spawnProjectile(def.projectile, def.projectile === 'bolt' ? origin.clone().addScaledVector(fwd, 0.5) : muzzle.clone(), vel, { def });
+      if (def.projectile === 'rocket') sfx.rocket(null);
+      else if (def.projectile === 'bolt') { sfx.swing(); sfx.dry(); }
+      else if (def.projectile === 'gl' || def.projectile === 'saw') { sfx.shot('shotgun', null, 0.45); sfx.pump(); }
+      else if (def.projectile === 'vortex') { sfx.zap(null); sfx.laser(null, 0.5); }
+      else sfx.laser(null);
       return;
     }
     if (def.chain) { this.fireTesla(origin, fwd, muzzle, def); return; }
 
-    sfx.shot(def.sound);
+    if (def.cryoSound) sfx.laser(null, 1.6); else sfx.shot(def.sound);
+    game.effects.muzzleSmoke(muzzle, fwd, def.pellets ? 1 : def.auto ? 0.35 : 0.8);
     // eject casing
     const right = new THREE.Vector3().crossVectors(fwd, cam.up).normalize();
-    game.effects.casing(muzzle.clone().addScaledVector(fwd, -0.3), right.clone().multiplyScalar(3 + Math.random() * 2).add(new THREE.Vector3(0, 3, 0)), !!def.pellets);
+    if (!def.cryoSound) {
+      game.effects.casing(muzzle.clone().addScaledVector(fwd, -0.3), right.clone().multiplyScalar(3 + Math.random() * 2).add(new THREE.Vector3(0, 3, 0)), !!def.pellets);
+      sfx.shell(game.player.pos);
+    }
     if (def.pump) { this.pumpT = 0.45; setTimeout(() => sfx.pump(), 250); }
     const pellets = def.pellets || 1;
+    const spread = (def.zoom && this.ads < 0.8 ? def.hipSpread : def.spread) * spreadMul;
     for (let i = 0; i < pellets; i++) {
       const d = fwd.clone();
-      const sp = def.spread * spreadMul;
-      d.x += (Math.random() - 0.5) * 2 * sp; d.y += (Math.random() - 0.5) * 2 * sp; d.z += (Math.random() - 0.5) * 2 * sp;
+      d.x += (Math.random() - 0.5) * 2 * spread; d.y += (Math.random() - 0.5) * 2 * spread; d.z += (Math.random() - 0.5) * 2 * spread;
       d.normalize();
-      game.hitscan(origin, d, 300, def.dmg, { pierce: def.pierce || 0, tracerFrom: muzzle, tracer: pellets === 1 || i % 3 === 0 });
+      game.hitscan(origin, d, 300, def.dmg, {
+        pierce: def.pierce || 0, tracerFrom: muzzle, tracer: pellets === 1 || i % 3 === 0, element: def.element, bounces: def.bounces || 0,
+        knock: def.knock, tracerColor: def.tracerColor ?? (def.bounces ? 0xffb050 : undefined),
+      });
+    }
+  }
+
+  // Flamethrower: a short cone that sets everything in it on fire.
+  fireFlame(origin, fwd, muzzle, def) {
+    const game = this.game;
+    sfx.flame?.();
+    for (let k = 0; k < 2; k++) {
+      const v = fwd.clone().multiplyScalar(14 + Math.random() * 6).add(new THREE.Vector3((Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 2 + 0.8, (Math.random() - 0.5) * 2.5));
+      game.effects.smoke(muzzle.clone().addScaledVector(fwd, 0.3), { size: 0.35, life: 0.55 + Math.random() * 0.2, fire: true, opacity: 0.85, grow: 6, vel: v, spin: 3 });
+    }
+    if (Math.random() < 0.3) game.effects.smoke(muzzle.clone().addScaledVector(fwd, 4), { size: 1.2, life: 1.4, color: 0x2a2624, opacity: 0.35, grow: 2, vel: fwd.clone().multiplyScalar(2).add(new THREE.Vector3(0, 1.5, 0)) });
+    if (Math.random() < 0.5) game.effects.flashLight(muzzle.clone().addScaledVector(fwd, 2), 0xff7a30, 10, 0.1, 14);
+    const range = def.range;
+    for (const z of game.zombies.list) {
+      if (z.dead) continue;
+      const c = _v.copy(z.pos); c.y += 1.1 * z.scale;
+      const to = c.clone().sub(origin); const d = to.length();
+      if (d > range + z.r) continue;
+      to.normalize();
+      if (to.dot(fwd) < 0.86) continue;
+      const wall = game.physics.raycast(origin.x, origin.y, origin.z, to.x, to.y, to.z, d);
+      if (wall && wall.dist < d - 0.5) continue;
+      game.damageZombie(z, 'torso', def.dmg, to, { element: 'fire', flame: true, noDismember: true, quiet: true });
     }
   }
 
@@ -410,6 +538,15 @@ export class WeaponSystem {
   update(dt, input) {
     const game = this.game, player = game.player;
     this.cool -= dt; this.switchT = Math.max(0, this.switchT - dt); this.pumpT = Math.max(0, this.pumpT - dt);
+    // burst fire: the rest of the burst follows on its own
+    if (this.burstLeft > 0 && this.w) {
+      this.burstT -= dt;
+      if (this.burstT <= 0) {
+        if (this.w.mag > 0 && this.reloadT <= 0) { this.w.mag--; this.fire(this.w.def); }
+        this.burstLeft--; this.burstT = this.w.def.burstGap || 0.07;
+        if (!this.burstLeft && this.w.mag === 0) setTimeout(() => this.reload(), 180);
+      }
+    }
     if (this.reloadT > 0) {
       this.reloadT -= dt;
       if (this.reloadT <= 0) {
@@ -434,7 +571,7 @@ export class WeaponSystem {
     if (player.onGround) this.bobT += dt * speed * 1.1;
     const bobAmt = (1 - this.ads * 0.85) * Math.min(1, speed / 8);
     const bx = Math.sin(this.bobT) * 0.018 * bobAmt, by = -Math.abs(Math.cos(this.bobT)) * 0.016 * bobAmt;
-    const model = this.models[this.w?.id];
+    const model = this.model;
     if (model) {
       const sightY = model.userData.sightY;
       const hip = new THREE.Vector3(0.15, -0.15, -0.36), aim = new THREE.Vector3(0, -sightY * 0.62, -0.26);
@@ -448,11 +585,9 @@ export class WeaponSystem {
       if (this.batT > 0) p.y -= 0.4;
       model.position.lerp(p, Math.min(1, dt * 30));
       model.rotation.set(rx, 0, rz);
-      if (this.w.def.spinup) {
-        // spin barrels
-        model.children.slice(3, 9).forEach((c, i) => { const a = (i / 6) * Math.PI * 2 + this.spinAngle; c.position.x = Math.cos(a) * 0.045; c.position.y = Math.sin(a) * 0.045; });
-        this.spinAngle = (this.spinAngle || 0) + this.spin * dt * 60;
-      }
+      if (model.userData.spin) model.userData.spin.rotation.z += this.spin * dt * 60; // spin the barrels
+      // sniper: hide the gun once you're looking through the scope
+      model.visible = !(model.userData.scope && this.ads > 0.85);
     }
     this.flashT -= dt;
     this.flash.visible = this.flashT > 0;

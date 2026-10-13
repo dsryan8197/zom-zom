@@ -72,7 +72,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 
 #bottom-right { position: absolute; right: 24px; bottom: 22px; text-align: right; }
 #slots { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 8px; }
-#slots div { min-width: 92px; padding: 4px 8px; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.18); font-size: 12px; text-align: left; }
+#slots div { min-width: 92px; max-width: 150px; padding: 4px 8px; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.18); font-size: 12px; text-align: left; }
 #slots div.active { border-color: #ffcf4a; background: rgba(60,45,0,.6); }
 #slots div small { display: block; opacity: .6; font-size: 10px; }
 #slots div.t2 { color: #7ecbff; } #slots div.t3 { color: #c58bff; } #slots div.t4 { color: #ffa53a; }
@@ -101,3 +101,27 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; colo
 .controls .dim { opacity: .6; margin-top: 8px; line-height: 1.4; }
 #go-stats { font-size: 20px; line-height: 1.8; margin: 16px 0 26px; }
 #go-stats b { color: #ffe08a; }
+
+/* settings */
+.panel button.secondary { font-size: 22px; padding: 6px 28px; margin-top: 12px; background: #3a3530; box-shadow: 0 3px 0 #1a1714; }
+.panel button.secondary:hover { background: #4a4440; }
+#settings { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.94); z-index: 20; }
+.settings-panel { width: min(480px, 92vw); box-sizing: border-box; }
+.settings-panel h2 { font-family: 'Bebas Neue'; font-size: 64px; letter-spacing: 4px; color: #e8e2d4; margin-bottom: 20px; }
+.setting { display: grid; grid-template-columns: minmax(90px, 170px) minmax(0, 1fr) 56px; align-items: center; gap: 14px; margin: 18px 0; text-align: left; font-size: 16px; }
+.setting input[type=range] { width: 100%; accent-color: #d22828; cursor: pointer; }
+.setting b { text-align: right; font-variant-numeric: tabular-nums; color: #ffe08a; }
+#settings-back { margin-top: 18px; }
+
+/* sniper scope */
+#scope { position: absolute; inset: 0; display: none; pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0, transparent 33vh, rgba(0,0,0,.97) 33.3vh); }
+#scope.on { display: block; }
+#scope i { position: absolute; left: 50%; top: 50%; width: 66vh; height: 66vh; transform: translate(-50%, -50%);
+  background: linear-gradient(#000, #000) center / 100% 2px no-repeat, linear-gradient(#000, #000) center / 2px 100% no-repeat; }
+#scope i::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; background: #ff2020; border-radius: 50%; box-shadow: 0 0 6px #f00; }
+
+/* workbench prompt colour */
+#prompt .bench { color: #c89aff; }
+#slots div.up2 { box-shadow: inset 0 0 0 1px #b070ff, 0 0 8px rgba(176,112,255,.5); }
+#slots div.up3 { box-shadow: inset 0 0 0 1px #ffd040, 0 0 10px rgba(255,180,60,.6); }
